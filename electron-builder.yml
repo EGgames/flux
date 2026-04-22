@@ -1,0 +1,39 @@
+appId: com.flux.app
+productName: FLUX
+copyright: Copyright © 2026 FLUX
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**/*
+  - node_modules/.prisma/**/*
+  - node_modules/@prisma/client/**/*
+  - prisma/schema.prisma
+  - "!node_modules/**/{CHANGELOG.md,README.md,*.d.ts}"
+
+asarUnpack:
+  - node_modules/.prisma
+  - node_modules/@prisma/client
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+
+mac:
+  target: dmg
+  icon: build/icon.icns
+
+linux:
+  target: AppImage
+  icon: build/icon.png

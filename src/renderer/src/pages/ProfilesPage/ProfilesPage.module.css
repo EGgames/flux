@@ -1,0 +1,16 @@
+.page { display: flex; flex-direction: column; gap: 16px; }
+.title { font-size: 20px; font-weight: 700; }
+.btnPrimary { padding: 8px 18px; background: var(--color-active); color: #fff; border-radius: var(--radius); font-size: 13px; font-weight: 600; }
+.btnPrimary:hover { background: #c73850; }
+.btnSecondary { padding: 7px 14px; background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 13px; }
+.btnDanger { padding: 5px 10px; background: transparent; border: 1px solid var(--color-active); border-radius: var(--radius); font-size: 12px; color: var(--color-active); }
+.list { display: flex; flex-direction: column; gap: 8px; max-width: 500px; }
+.profileCard { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-radius: var(--radius); background: var(--color-panel); border: 1px solid var(--color-border); transition: border-color var(--transition); }
+.profileCard.active { border-color: var(--color-active); }
+.profileCard:hover { border-color: var(--color-text-muted); }
+.profileName { font-size: 15px; font-weight: 600; }
+.profileMeta { font-size: 11px; color: var(--color-text-muted); margin-top: 2px; }
+.actions { display: flex; gap: 8px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; background: var(--color-active); color: #fff; text-transform: uppercase; }
+.form { display: flex; gap: 8px; max-width: 500px; }
+.input { flex: 1; }

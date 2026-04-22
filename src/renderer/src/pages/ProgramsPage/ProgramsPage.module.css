@@ -1,0 +1,23 @@
+.page { display: flex; flex-direction: column; gap: 16px; }
+.header { display: flex; align-items: center; justify-content: space-between; }
+.title { font-size: 20px; font-weight: 700; }
+.btnPrimary { padding: 8px 18px; background: var(--color-active); color: #fff; border-radius: var(--radius); font-size: 13px; font-weight: 600; }
+.btnPrimary:hover { background: #c73850; }
+.btnDanger { padding: 5px 10px; background: transparent; border: 1px solid var(--color-active); border-radius: var(--radius); font-size: 12px; color: var(--color-active); }
+.weekGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.dayCol { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 10px 8px; min-height: 300px; }
+.dayTitle { font-size: 12px; font-weight: 600; color: var(--color-text-muted); text-align: center; margin-bottom: 8px; text-transform: uppercase; }
+.program { padding: 6px 8px; border-radius: var(--radius); background: var(--color-accent); border: 1px solid var(--color-border); margin-bottom: 6px; cursor: pointer; }
+.program:hover { border-color: var(--color-active); }
+.programName { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.programTime { font-size: 10px; color: var(--color-text-muted); }
+.addBtn { width: 100%; padding: 6px; border: 1px dashed var(--color-border); border-radius: var(--radius); font-size: 11px; color: var(--color-text-muted); background: none; margin-top: 6px; }
+.addBtn:hover { border-color: var(--color-active); color: var(--color-text); }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modalBox { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 24px; width: 360px; display: flex; flex-direction: column; gap: 12px; }
+.modalTitle { font-size: 15px; font-weight: 700; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.label { font-size: 12px; color: var(--color-text-muted); }
+.row { display: flex; gap: 8px; }
+.modalActions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.btnSecondary { padding: 7px 14px; background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 13px; }

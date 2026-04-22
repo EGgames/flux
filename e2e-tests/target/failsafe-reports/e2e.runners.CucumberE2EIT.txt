@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: e2e.runners.CucumberE2EIT
+-------------------------------------------------------------------------------
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 33.20 s -- in e2e.runners.CucumberE2EIT

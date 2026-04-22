@@ -1,0 +1,52 @@
+import { ipcMain, dialog } from 'electron'
+import type { PrismaClient } from '@prisma/client'
+import path from 'path'
+import fs from 'fs'
+import { getAudioDurationMs } from '../utils/audio'
+
+export function registerAudioAssetIpc(db: PrismaClient): void {
+  ipcMain.handle('audio-asset:list', async () => {
+    return db.audioAsset.findMany({ orderBy: { name: 'asc' } })
+  })
+
+  ipcMain.handle('audio-asset:pick-files', async (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender)
+    const result = await dialog.showOpenDialog(win!, {
+      title: 'Importar archivos de audio',
+      filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'] }],
+      properties: ['openFile', 'multiSelections']
+    })
+    return result.canceled ? [] : result.filePaths
+  })
+
+  ipcMain.handle('audio-asset:import', async (_event, filePath: string) => {
+    const name = path.basename(filePath, path.extname(filePath))
+    const durationMs = await getAudioDurationMs(filePath)
+    return db.audioAsset.create({
+      data: {
+        name,
+        sourceType: 'local',
+        sourcePath: filePath,
+        durationMs
+      }
+    })
+  })
+
+  ipcMain.handle('audio-asset:import-batch', async (_event, filePaths: string[]) => {
+    const results = []
+    for (const filePath of filePaths) {
+      const name = path.basename(filePath, path.extname(filePath))
+      const durationMs = await getAudioDurationMs(filePath)
+      const asset = await db.audioAsset.create({
+        data: { name, sourceType: 'local', sourcePath: filePath, durationMs }
+      })
+      results.push(asset)
+    }
+    return results
+  })
+
+  ipcMain.handle('audio-asset:delete', async (_event, id: string) => {
+    await db.audioAsset.delete({ where: { id } })
+    return { success: true }
+  })
+}

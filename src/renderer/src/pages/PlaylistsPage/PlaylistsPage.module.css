@@ -1,0 +1,69 @@
+.page { display: flex; flex-direction: column; gap: 16px; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.title { font-size: 20px; font-weight: 700; }
+.btnPrimary { padding: 8px 18px; background: var(--color-active); color: #fff; border-radius: var(--radius); font-size: 13px; font-weight: 600; }
+.btnPrimary:hover { background: #c73850; }
+.btnSecondary { padding: 7px 14px; background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 13px; }
+.btnSecondary:hover { border-color: var(--color-active); }
+.btnDanger { padding: 7px 14px; background: transparent; border: 1px solid var(--color-active); border-radius: var(--radius); font-size: 12px; color: var(--color-active); }
+.programLayoutControl { display: flex; align-items: center; gap: 8px; }
+.programLabel { font-size: 12px; color: var(--color-text-muted); }
+.select { min-width: 220px; }
+.list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.listItem { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-radius: var(--radius); background: var(--color-panel); border: 1px solid var(--color-border); cursor: pointer; transition: border-color var(--transition); }
+.listItem:hover, .listItem.selected { border-color: var(--color-active); }
+.listItem.selected { background: var(--color-accent); }
+.listItemName { font-size: 13px; font-weight: 600; }
+.detailTitle { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.trackList { display: flex; flex-direction: column; gap: 4px; }
+.trackItem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius); border: 1px solid transparent; }
+.trackItem:hover { background: var(--color-panel-alt); }
+.trackPos { font-size: 11px; color: var(--color-text-muted); width: 20px; }
+.trackName { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trackDur { font-size: 11px; color: var(--color-text-muted); }
+.empty { color: var(--color-text-muted); font-size: 13px; padding: 20px; text-align: center; }
+.form { display: flex; gap: 8px; }
+.input { flex: 1; }
+
+.dropOverlay {
+	border: 1px dashed transparent;
+	border-radius: var(--radius);
+	transition: border-color var(--transition), background var(--transition);
+}
+
+.dropActive {
+	border-color: var(--color-active);
+	background: rgba(233, 69, 96, 0.08);
+}
+
+.bigDropZone {
+	border: 1px dashed var(--color-border);
+	border-radius: var(--radius);
+	min-height: 100%;
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 8px;
+	color: var(--color-text-muted);
+	text-align: center;
+}
+
+.bigDropActive {
+	border-color: var(--color-active);
+	background: rgba(233, 69, 96, 0.08);
+}
+
+.dropHint {
+	font-size: 12px;
+}
+
+.dropWarn {
+	color: var(--color-warning);
+	font-size: 12px;
+}
+
+.dropInfo {
+	color: var(--color-success);
+	font-size: 12px;
+}

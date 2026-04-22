@@ -1,0 +1,39 @@
+.page { display: flex; flex-direction: column; gap: 16px; }
+.header { display: flex; align-items: center; justify-content: space-between; }
+.title { font-size: 20px; font-weight: 700; }
+.btnPrimary { padding: 8px 18px; background: var(--color-active); color: #fff; border-radius: var(--radius); font-size: 13px; font-weight: 600; }
+.btnPrimary:hover { background: #c73850; }
+.btnSecondary { padding: 7px 14px; background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 13px; }
+.btnSecondary:hover { border-color: var(--color-active); }
+.btnDanger { padding: 5px 10px; background: transparent; border: 1px solid var(--color-active); border-radius: var(--radius); font-size: 12px; color: var(--color-active); }
+.body { display: flex; gap: 16px; }
+.list { width: 240px; display: flex; flex-direction: column; gap: 6px; }
+.listItem { padding: 10px 12px; border-radius: var(--radius); background: var(--color-panel); border: 1px solid var(--color-border); cursor: pointer; }
+.listItem:hover, .listItem.selected { border-color: var(--color-active); }
+.listItem.selected { background: var(--color-accent); }
+.listItemHeader { display: flex; align-items: center; justify-content: space-between; }
+.listItemName { font-size: 13px; font-weight: 600; }
+.detail { flex: 1; background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.detailTitle { font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+.section { font-size: 12px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: 8px; }
+.trackList { display: flex; flex-direction: column; gap: 4px; }
+.trackItem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius); }
+.trackItem:hover { background: var(--color-panel-alt); }
+.trackPos { font-size: 11px; color: var(--color-text-muted); width: 20px; }
+.trackName { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ruleItem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius); background: var(--color-panel-alt); }
+.ruleTag { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: var(--color-accent); color: var(--color-text); text-transform: uppercase; }
+.ruleConfig { flex: 1; font-size: 12px; color: var(--color-text-muted); }
+.empty { color: var(--color-text-muted); font-size: 13px; padding: 20px; text-align: center; }
+.form { display: flex; gap: 8px; }
+.input { flex: 1; }
+.ruleForm { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.ruleSelect { min-width: 120px; }
+.timeInput { min-width: 120px; }
+.timeComposer { display: flex; gap: 8px; align-items: center; }
+.timeHelp { margin-top: 8px; font-size: 12px; color: var(--color-text-muted); }
+.timeSlots { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.timeSlot { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-panel-alt); font-size: 12px; }
+.timeSlotRemove { border: none; background: transparent; color: var(--color-active); padding: 0; font-size: 12px; line-height: 1; }
+.timeEmpty { font-size: 12px; color: var(--color-text-muted); }
+.ruleError { color: var(--color-active); font-size: 12px; margin-bottom: 6px; }

@@ -1,0 +1,53 @@
+{
+  "name": "flux",
+  "version": "0.1.0",
+  "description": "Radio automation desktop software",
+  "main": "out/main/index.js",
+  "author": "FLUX",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e:serenity": "bash e2e-tests/run-e2e.sh",
+    "e2e:serenity:raw": "mvn -f e2e-tests/pom.xml verify",
+    "e2e:serenity:report": "mvn -f e2e-tests/pom.xml serenity:aggregate -DskipTests",
+    "preview": "electron-vite preview",
+    "postinstall": "prisma generate",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "electron-log": "^5.2.4",
+    "electron-updater": "^6.3.9",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@types/howler": "^2.2.11",
+    "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "howler": "^2.2.4",
+    "jsdom": "^25.0.1",
+    "prisma": "^5.22.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}

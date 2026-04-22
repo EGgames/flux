@@ -1,0 +1,160 @@
+// This is the Prisma schema for FLUX
+// SQLite local-first database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  isDefault   Boolean  @default(false)
+  preferences String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  playlists         Playlist[]
+  adBlocks          AdBlock[]
+  adRules           AdRule[]
+  soundboardButtons SoundboardButton[]
+  programs          RadioProgram[]
+  outputs           OutputIntegration[]
+}
+
+model AudioAsset {
+  id         String   @id @default(cuid())
+  name       String
+  sourceType String   // 'local' | 'stream'
+  sourcePath String
+  durationMs Int?
+  tags       String   @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  playlistItems     PlaylistItem[]
+  adBlockItems      AdBlockItem[]
+  soundboardButtons SoundboardButton[]
+}
+
+model Playlist {
+  id        String   @id @default(cuid())
+  name      String
+  profileId String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile  Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  items    PlaylistItem[]
+  programs RadioProgram[]
+}
+
+model PlaylistItem {
+  id           String @id @default(cuid())
+  playlistId   String
+  audioAssetId String
+  position     Int
+
+  playlist   Playlist   @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  audioAsset AudioAsset @relation(fields: [audioAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, position])
+}
+
+model AdBlock {
+  id        String   @id @default(cuid())
+  name      String
+  profileId String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  items   AdBlockItem[]
+  rules   AdRule[]
+}
+
+model AdBlockItem {
+  id           String @id @default(cuid())
+  adBlockId    String
+  audioAssetId String
+  position     Int
+
+  adBlock    AdBlock    @relation(fields: [adBlockId], references: [id], onDelete: Cascade)
+  audioAsset AudioAsset @relation(fields: [audioAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([adBlockId, position])
+}
+
+model AdRule {
+  id            String   @id @default(cuid())
+  profileId     String
+  adBlockId     String
+  triggerType   String   // 'time' | 'song_count' | 'manual'
+  triggerConfig String   @default("{}")
+  priority      Int      @default(0)
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  adBlock AdBlock @relation(fields: [adBlockId], references: [id], onDelete: Cascade)
+}
+
+model SoundboardButton {
+  id           String  @id @default(cuid())
+  profileId    String
+  slotIndex    Int
+  label        String?
+  audioAssetId String?
+  mode         String  @default("oneshot") // 'oneshot' | 'toggle' | 'loop'
+  color        String  @default("#3a7bd5")
+
+  profile    Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  audioAsset AudioAsset? @relation(fields: [audioAssetId], references: [id], onDelete: SetNull)
+
+  @@unique([profileId, slotIndex])
+}
+
+model RadioProgram {
+  id         String   @id @default(cuid())
+  profileId  String
+  name       String
+  dayOfWeek  Int      // 0=Sunday...6=Saturday
+  startTime  String   // "HH:MM"
+  endTime    String   // "HH:MM"
+  playlistId String?
+  priority   Int      @default(0)
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  profile  Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  playlist Playlist? @relation(fields: [playlistId], references: [id], onDelete: SetNull)
+}
+
+model OutputIntegration {
+  id         String   @id @default(cuid())
+  profileId  String
+  outputType String   // 'local' | 'icecast' | 'shoutcast'
+  config     String   @default("{}")
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model PlayoutEvent {
+  id        String   @id @default(cuid())
+  profileId String?
+  eventType String   // 'play' | 'pause' | 'stop' | 'ad_start' | 'ad_end' | 'error'
+  payload   String   @default("{}")
+  status    String   @default("ok")
+  createdAt DateTime @default(now())
+}

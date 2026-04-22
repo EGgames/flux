@@ -1,0 +1,412 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
+import type { PlayoutStatus, AudioAsset, AdRule } from '../types/ipc.types'
+import { playoutService } from '../services/playoutService'
+import { outputService } from '../services/outputService'
+
+interface LocalOutputConfig {
+  deviceId?: string
+  deviceName?: string
+}
+
+interface EqualizerState {
+  enabled: boolean
+  low: number
+  mid: number
+  high: number
+}
+
+interface TimeRule {
+  dayOfWeek: number
+  time: string
+}
+
+function parseTimeRule(rule: AdRule): TimeRule | null {
+  if (rule.triggerType !== 'time') return null
+
+  try {
+    const parsed = JSON.parse(rule.triggerConfig) as { dayOfWeek?: number; time?: string }
+    if (typeof parsed.dayOfWeek === 'number' && typeof parsed.time === 'string') {
+      return { dayOfWeek: parsed.dayOfWeek, time: parsed.time }
+    }
+    if (typeof parsed.time === 'string') {
+      return { dayOfWeek: -1, time: parsed.time }
+    }
+  } catch {
+    if (/^\d{2}:\d{2}$/.test(rule.triggerConfig)) {
+      return { dayOfWeek: -1, time: rule.triggerConfig }
+    }
+  }
+
+  return null
+}
+
+function getNextOccurrenceMs(now: Date, rule: TimeRule): number | null {
+  const [hh, mm] = rule.time.split(':').map(Number)
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return null
+
+  let candidate: Date | null = null
+  for (let offset = 0; offset <= 7; offset++) {
+    const test = new Date(now)
+    test.setDate(now.getDate() + offset)
+    test.setHours(hh, mm, 0, 0)
+
+    const matchesDay = rule.dayOfWeek === -1 || test.getDay() === rule.dayOfWeek
+    if (!matchesDay) continue
+    if (test.getTime() <= now.getTime()) continue
+
+    candidate = test
+    break
+  }
+
+  return candidate?.getTime() ?? null
+}
+
+function formatHms(seconds: number): string {
+  const clamped = Math.max(0, Math.floor(seconds))
+  const hh = Math.floor(clamped / 3600)
+  const mm = Math.floor((clamped % 3600) / 60)
+  const ss = clamped % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+}
+
+export function usePlayout() {
+  const [status, setStatus] = useState<PlayoutStatus>({
+    state: 'stopped',
+    profileId: null,
+    track: null,
+    queueIndex: 0,
+    queueLength: 0,
+    songsSinceLastAd: 0
+  })
+  const [error, setError] = useState<string | null>(null)
+  const [equalizer, setEqualizer] = useState<EqualizerState>({
+    enabled: true,
+    low: 0,
+    mid: 0,
+    high: 0
+  })
+  const [nextAdCountdownSec, setNextAdCountdownSec] = useState<number | null>(null)
+  const [nextAdLabel, setNextAdLabel] = useState<string>('Sin tanda programada')
+  const [adBreakElapsedSec, setAdBreakElapsedSec] = useState(0)
+  const [adBreakRemainingSec, setAdBreakRemainingSec] = useState<number | null>(null)
+  const [adBreakName, setAdBreakName] = useState<string | null>(null)
+  const howlRef = useRef<Howl | null>(null)
+  const transitionRef = useRef<{ fadeInMs: number; fadeOutMs: number }>({ fadeInMs: 0, fadeOutMs: 0 })
+  const sinkDeviceIdRef = useRef<string | null>(null)
+  const eqNodesRef = useRef<{
+    low: BiquadFilterNode
+    mid: BiquadFilterNode
+    high: BiquadFilterNode
+  } | null>(null)
+  const eqAttachedRef = useRef(false)
+  const timeRulesRef = useRef<TimeRule[]>([])
+  const nextAdTargetRef = useRef<number | null>(null)
+  const adBreakStartedAtRef = useRef<number | null>(null)
+  const adBreakTotalSecRef = useRef<number | null>(null)
+
+  const setupEqualizerGraph = useCallback(() => {
+    const howlerCtx = (globalThis as unknown as { Howler?: { ctx?: AudioContext; masterGain?: GainNode } }).Howler
+    const audioCtx = howlerCtx?.ctx
+    const masterGain = howlerCtx?.masterGain
+    if (!audioCtx || !masterGain || eqAttachedRef.current) return
+
+    const low = audioCtx.createBiquadFilter()
+    low.type = 'lowshelf'
+    low.frequency.value = 120
+
+    const mid = audioCtx.createBiquadFilter()
+    mid.type = 'peaking'
+    mid.frequency.value = 1000
+    mid.Q.value = 1
+
+    const high = audioCtx.createBiquadFilter()
+    high.type = 'highshelf'
+    high.frequency.value = 4500
+
+    try {
+      masterGain.disconnect()
+    } catch {
+      // no-op
+    }
+    masterGain.connect(low)
+    low.connect(mid)
+    mid.connect(high)
+    high.connect(audioCtx.destination)
+
+    eqNodesRef.current = { low, mid, high }
+    eqAttachedRef.current = true
+  }, [])
+
+  useEffect(() => {
+    setupEqualizerGraph()
+  }, [setupEqualizerGraph])
+
+  useEffect(() => {
+    const nodes = eqNodesRef.current
+    if (!nodes) return
+
+    const multiplier = equalizer.enabled ? 1 : 0
+    nodes.low.gain.value = equalizer.low * multiplier
+    nodes.mid.gain.value = equalizer.mid * multiplier
+    nodes.high.gain.value = equalizer.high * multiplier
+  }, [equalizer])
+
+  const applySinkToHowl = useCallback(async (howl: Howl) => {
+    const targetDeviceId = sinkDeviceIdRef.current
+    if (!targetDeviceId) return
+
+    try {
+      const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
+      for (const sound of sounds) {
+        if (sound._node?.setSinkId) {
+          await sound._node.setSinkId(targetDeviceId)
+        }
+      }
+    } catch {
+      // Some environments do not allow changing output device; keep default sink silently.
+    }
+  }, [])
+
+  const loadLocalOutput = useCallback(async (profileId: string) => {
+    const outputs = await outputService.list(profileId)
+    const local = outputs.find((out) => out.outputType === 'local' && out.enabled)
+    if (!local) {
+      sinkDeviceIdRef.current = null
+      return
+    }
+
+    try {
+      const cfg = JSON.parse(local.config) as LocalOutputConfig
+      sinkDeviceIdRef.current = cfg.deviceId && cfg.deviceId !== 'default' ? cfg.deviceId : null
+    } catch {
+      sinkDeviceIdRef.current = null
+    }
+  }, [])
+
+  const loadTimeRules = useCallback(async (profileId: string) => {
+    const listFn = (window.electronAPI as unknown as { adRules?: { list?: (id: string) => Promise<AdRule[]> } }).adRules?.list
+    if (!listFn) {
+      timeRulesRef.current = []
+      nextAdTargetRef.current = null
+      setNextAdCountdownSec(null)
+      setNextAdLabel('Sin tanda programada')
+      return
+    }
+
+    const rules = await listFn(profileId)
+    const parsedRules = rules
+      .map(parseTimeRule)
+      .filter((rule): rule is TimeRule => Boolean(rule))
+
+    timeRulesRef.current = parsedRules
+
+    const now = new Date()
+    const candidates = parsedRules
+      .map((rule) => getNextOccurrenceMs(now, rule))
+      .filter((value): value is number => value !== null)
+
+    const nextTarget = candidates.length ? Math.min(...candidates) : null
+    nextAdTargetRef.current = nextTarget
+    if (!nextTarget) {
+      setNextAdCountdownSec(null)
+      setNextAdLabel('Sin tanda programada')
+      return
+    }
+
+    setNextAdCountdownSec(Math.max(0, Math.floor((nextTarget - now.getTime()) / 1000)))
+    setNextAdLabel(new Date(nextTarget).toLocaleString('es-AR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }))
+  }, [])
+
+  const playTrack = useCallback((track: AudioAsset, fadeInMs = 0) => {
+    howlRef.current?.unload()
+    const src =
+      track.sourceType === 'local'
+        ? `local-audio://${encodeURIComponent(track.sourcePath.replace(/\\/g, '/'))}`
+        : track.sourcePath
+
+    const howl = new Howl({
+      src: [src],
+      volume: fadeInMs > 0 ? 0 : 1,
+      onplay: () => {
+        void applySinkToHowl(howl)
+      },
+      onend: () => {
+        window.electronAPI.playout.next()
+      },
+      onloaderror: () => {
+        setError(`No se pudo cargar: ${track.name}`)
+        window.electronAPI.playout.next()
+      }
+    })
+    howl.play()
+    if (fadeInMs > 0) {
+      howl.fade(0, 1, fadeInMs)
+    }
+    howlRef.current = howl
+  }, [applySinkToHowl])
+
+  useEffect(() => {
+    // Listen for state changes from Main Process
+    const onStateChanged = (data: { state: PlayoutStatus['state'] }) => {
+      setStatus((prev) => ({ ...prev, state: data.state }))
+    }
+    const onTrackChanged = (data: { track: AudioAsset }) => {
+      setStatus((prev) => ({ ...prev, track: data.track }))
+      playTrack(data.track, transitionRef.current.fadeInMs)
+      transitionRef.current = { fadeInMs: 0, fadeOutMs: 0 }
+    }
+    const onAdStart = (data: { block: { id: string; name: string; items?: Array<{ audioAsset?: { durationMs: number | null } }> } }) => {
+      setStatus((prev) => ({ ...prev, state: 'ad_break' }))
+      setAdBreakName(data.block.name)
+      adBreakStartedAtRef.current = Date.now()
+      const totalMs = (data.block.items ?? []).reduce((sum, item) => sum + (item.audioAsset?.durationMs ?? 0), 0)
+      adBreakTotalSecRef.current = totalMs > 0 ? Math.floor(totalMs / 1000) : null
+      setAdBreakElapsedSec(0)
+      setAdBreakRemainingSec(adBreakTotalSecRef.current)
+    }
+
+    const onProgramChanged = async (data: {
+      program: { profileId: string; playlistId?: string | null }
+      transition?: { fadeInMs?: number; fadeOutMs?: number }
+    }) => {
+      if (status.state !== 'playing') return
+      if (status.profileId !== data.program.profileId) return
+
+      const fadeOutMs = data.transition?.fadeOutMs ?? 1000
+      const fadeInMs = data.transition?.fadeInMs ?? 1000
+
+      const currentHowl = howlRef.current
+      if (currentHowl?.playing()) {
+        try {
+          currentHowl.fade(currentHowl.volume(), 0, fadeOutMs)
+          window.setTimeout(() => currentHowl.stop(), fadeOutMs + 40)
+        } catch {
+          currentHowl.stop()
+        }
+      }
+
+      transitionRef.current = { fadeInMs, fadeOutMs }
+      await playoutService.syncProgram(data.program.profileId, data.program.playlistId ?? null)
+    }
+
+    window.electronAPI.on('playout:state-changed', onStateChanged as (...args: unknown[]) => void)
+    window.electronAPI.on('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
+    window.electronAPI.on('playout:ad-start', onAdStart as (...args: unknown[]) => void)
+    window.electronAPI.on('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
+
+    return () => {
+      window.electronAPI.off('playout:state-changed', onStateChanged as (...args: unknown[]) => void)
+      window.electronAPI.off('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
+      window.electronAPI.off('playout:ad-start', onAdStart as (...args: unknown[]) => void)
+      window.electronAPI.off('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
+    }
+  }, [playTrack, status.profileId, status.state])
+
+  useEffect(() => {
+    if (!status.profileId) return
+    void loadTimeRules(status.profileId)
+  }, [loadTimeRules, status.profileId])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const nowMs = Date.now()
+
+      const nextTarget = nextAdTargetRef.current
+      if (nextTarget) {
+        const left = Math.max(0, Math.floor((nextTarget - nowMs) / 1000))
+        setNextAdCountdownSec(left)
+        if (left <= 0 && status.profileId) {
+          void loadTimeRules(status.profileId)
+        }
+      }
+
+      if (status.state === 'ad_break' && adBreakStartedAtRef.current) {
+        const elapsed = Math.max(0, Math.floor((nowMs - adBreakStartedAtRef.current) / 1000))
+        setAdBreakElapsedSec(elapsed)
+        if (adBreakTotalSecRef.current !== null) {
+          setAdBreakRemainingSec(Math.max(0, adBreakTotalSecRef.current - elapsed))
+        }
+      } else {
+        adBreakStartedAtRef.current = null
+        adBreakTotalSecRef.current = null
+        setAdBreakName(null)
+        setAdBreakElapsedSec(0)
+        setAdBreakRemainingSec(null)
+      }
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [loadTimeRules, status.profileId, status.state])
+
+  const start = useCallback(async (profileId: string, playlistId?: string) => {
+    setError(null)
+    try {
+      await loadLocalOutput(profileId)
+      await loadTimeRules(profileId)
+      const st = await playoutService.start(profileId, playlistId)
+      setStatus(st)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al iniciar')
+    }
+  }, [loadLocalOutput, loadTimeRules])
+
+  const stop = useCallback(async () => {
+    howlRef.current?.unload()
+    await playoutService.stop()
+  }, [])
+
+  const pause = useCallback(() => {
+    howlRef.current?.pause()
+    playoutService.pause()
+  }, [])
+
+  const resume = useCallback(() => {
+    howlRef.current?.play()
+    playoutService.resume()
+  }, [])
+
+  const next = useCallback(() => {
+    howlRef.current?.stop()
+    playoutService.next()
+  }, [])
+
+  const triggerAdBlock = useCallback(async (adBlockId: string) => {
+    await playoutService.triggerAdBlock(adBlockId)
+  }, [])
+
+  const setEqualizerBand = useCallback((band: 'low' | 'mid' | 'high', value: number) => {
+    setEqualizer((prev) => ({ ...prev, [band]: value }))
+  }, [])
+
+  const toggleEqualizer = useCallback((enabled: boolean) => {
+    setEqualizer((prev) => ({ ...prev, enabled }))
+  }, [])
+
+  const resetEqualizer = useCallback(() => {
+    setEqualizer({ enabled: true, low: 0, mid: 0, high: 0 })
+  }, [])
+
+  return {
+    status,
+    error,
+    start,
+    stop,
+    pause,
+    resume,
+    next,
+    triggerAdBlock,
+    adBreakTimer: {
+      name: adBreakName,
+      elapsedLabel: formatHms(adBreakElapsedSec),
+      remainingLabel: adBreakRemainingSec !== null ? formatHms(adBreakRemainingSec) : '—'
+    },
+    nextAd: {
+      countdownLabel: nextAdCountdownSec !== null ? formatHms(nextAdCountdownSec) : '—',
+      atLabel: nextAdLabel
+    },
+    equalizer,
+    setEqualizerBand,
+    toggleEqualizer,
+    resetEqualizer
+  }
+}
