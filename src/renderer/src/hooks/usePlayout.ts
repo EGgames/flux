@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Howl, Howler } from 'howler'
 import type { PlayoutStatus, AudioAsset, AdRule } from '../types/ipc.types'
 import { playoutService } from '../services/playoutService'
 import { outputService } from '../services/outputService'
@@ -90,9 +91,15 @@ export function usePlayout() {
   const [adBreakElapsedSec, setAdBreakElapsedSec] = useState(0)
   const [adBreakRemainingSec, setAdBreakRemainingSec] = useState<number | null>(null)
   const [adBreakName, setAdBreakName] = useState<string | null>(null)
+  const [currentSec, setCurrentSec] = useState(0)
+  const [durationSec, setDurationSec] = useState(0)
+  const statusRef = useRef(status)
+  useEffect(() => { statusRef.current = status }, [status])
   const howlRef = useRef<Howl | null>(null)
+  const monitorHowlRef = useRef<Howl | null>(null)
   const transitionRef = useRef<{ fadeInMs: number; fadeOutMs: number }>({ fadeInMs: 0, fadeOutMs: 0 })
   const sinkDeviceIdRef = useRef<string | null>(null)
+  const monitorSinkDeviceIdRef = useRef<string | null>(null)
   const eqNodesRef = useRef<{
     low: BiquadFilterNode
     mid: BiquadFilterNode
@@ -105,7 +112,7 @@ export function usePlayout() {
   const adBreakTotalSecRef = useRef<number | null>(null)
 
   const setupEqualizerGraph = useCallback(() => {
-    const howlerCtx = (globalThis as unknown as { Howler?: { ctx?: AudioContext; masterGain?: GainNode } }).Howler
+    const howlerCtx = (Howler as unknown as { ctx?: AudioContext; masterGain?: GainNode })
     const audioCtx = howlerCtx?.ctx
     const masterGain = howlerCtx?.masterGain
     if (!audioCtx || !masterGain || eqAttachedRef.current) return
@@ -167,6 +174,21 @@ export function usePlayout() {
     }
   }, [])
 
+  const applyMonitorSinkToHowl = useCallback(async (howl: Howl) => {
+    const targetDeviceId = monitorSinkDeviceIdRef.current
+    if (!targetDeviceId) return
+    try {
+      const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
+      for (const sound of sounds) {
+        if (sound._node?.setSinkId) {
+          await sound._node.setSinkId(targetDeviceId)
+        }
+      }
+    } catch {
+      // Monitor device unavailable, ignore silently.
+    }
+  }, [])
+
   const loadLocalOutput = useCallback(async (profileId: string) => {
     const outputs = await outputService.list(profileId)
     const local = outputs.find((out) => out.outputType === 'local' && out.enabled)
@@ -180,6 +202,21 @@ export function usePlayout() {
       sinkDeviceIdRef.current = cfg.deviceId && cfg.deviceId !== 'default' ? cfg.deviceId : null
     } catch {
       sinkDeviceIdRef.current = null
+    }
+  }, [])
+
+  const loadMonitorOutput = useCallback(async (profileId: string) => {
+    const outputs = await outputService.list(profileId)
+    const monitorOut = outputs.find((out) => out.outputType === 'monitor' && out.enabled)
+    if (!monitorOut) {
+      monitorSinkDeviceIdRef.current = null
+      return
+    }
+    try {
+      const cfg = JSON.parse(monitorOut.config) as LocalOutputConfig
+      monitorSinkDeviceIdRef.current = cfg.deviceId && cfg.deviceId !== 'default' ? cfg.deviceId : null
+    } catch {
+      monitorSinkDeviceIdRef.current = null
     }
   }, [])
 
@@ -219,22 +256,30 @@ export function usePlayout() {
 
   const playTrack = useCallback((track: AudioAsset, fadeInMs = 0) => {
     howlRef.current?.unload()
+    monitorHowlRef.current?.unload()
+    setCurrentSec(0)
+    setDurationSec(0)
     const src =
       track.sourceType === 'local'
-        ? `local-audio://${encodeURIComponent(track.sourcePath.replace(/\\/g, '/'))}`
+        ? `local-audio://?p=${encodeURIComponent(track.sourcePath)}`
         : track.sourcePath
 
     const howl = new Howl({
       src: [src],
+      html5: true,
       volume: fadeInMs > 0 ? 0 : 1,
+      onload: () => {
+        setDurationSec(Math.floor(howl.duration()))
+      },
       onplay: () => {
         void applySinkToHowl(howl)
       },
       onend: () => {
+        setCurrentSec(0)
         window.electronAPI.playout.next()
       },
-      onloaderror: () => {
-        setError(`No se pudo cargar: ${track.name}`)
+      onloaderror: (_id: number, err: unknown) => {
+        setError(`No se pudo cargar: ${track.name} — ${String(err)}`)
         window.electronAPI.playout.next()
       }
     })
@@ -243,7 +288,21 @@ export function usePlayout() {
       howl.fade(0, 1, fadeInMs)
     }
     howlRef.current = howl
-  }, [applySinkToHowl])
+
+    // Monitor: reproduce el mismo audio en el dispositivo de monitoreo
+    if (monitorSinkDeviceIdRef.current) {
+      const monitorHowl = new Howl({
+        src: [src],
+        html5: true,
+        volume: 1,
+        onplay: () => { void applyMonitorSinkToHowl(monitorHowl) }
+      })
+      monitorHowl.play()
+      monitorHowlRef.current = monitorHowl
+    } else {
+      monitorHowlRef.current = null
+    }
+  }, [applySinkToHowl, applyMonitorSinkToHowl])
 
   useEffect(() => {
     // Listen for state changes from Main Process
@@ -269,8 +328,8 @@ export function usePlayout() {
       program: { profileId: string; playlistId?: string | null }
       transition?: { fadeInMs?: number; fadeOutMs?: number }
     }) => {
-      if (status.state !== 'playing') return
-      if (status.profileId !== data.program.profileId) return
+      if (statusRef.current.state !== 'playing') return
+      if (statusRef.current.profileId !== data.program.profileId) return
 
       const fadeOutMs = data.transition?.fadeOutMs ?? 1000
       const fadeInMs = data.transition?.fadeInMs ?? 1000
@@ -300,7 +359,7 @@ export function usePlayout() {
       window.electronAPI.off('playout:ad-start', onAdStart as (...args: unknown[]) => void)
       window.electronAPI.off('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
     }
-  }, [playTrack, status.profileId, status.state])
+  }, [playTrack])
 
   useEffect(() => {
     if (!status.profileId) return
@@ -310,17 +369,18 @@ export function usePlayout() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       const nowMs = Date.now()
+      const currentStatus = statusRef.current
 
       const nextTarget = nextAdTargetRef.current
       if (nextTarget) {
         const left = Math.max(0, Math.floor((nextTarget - nowMs) / 1000))
         setNextAdCountdownSec(left)
-        if (left <= 0 && status.profileId) {
-          void loadTimeRules(status.profileId)
+        if (left <= 0 && currentStatus.profileId) {
+          void loadTimeRules(currentStatus.profileId)
         }
       }
 
-      if (status.state === 'ad_break' && adBreakStartedAtRef.current) {
+      if (currentStatus.state === 'ad_break' && adBreakStartedAtRef.current) {
         const elapsed = Math.max(0, Math.floor((nowMs - adBreakStartedAtRef.current) / 1000))
         setAdBreakElapsedSec(elapsed)
         if (adBreakTotalSecRef.current !== null) {
@@ -333,41 +393,66 @@ export function usePlayout() {
         setAdBreakElapsedSec(0)
         setAdBreakRemainingSec(null)
       }
+
+      // Actualizar posición del track actual
+      if (howlRef.current?.playing()) {
+        const pos = howlRef.current.seek()
+        if (typeof pos === 'number') setCurrentSec(Math.floor(pos))
+      }
     }, 1000)
 
     return () => window.clearInterval(timer)
-  }, [loadTimeRules, status.profileId, status.state])
+  }, [loadTimeRules])
 
-  const start = useCallback(async (profileId: string, playlistId?: string) => {
+  const start = useCallback(async (profileId: string, playlistId?: string, startIndex?: number) => {
     setError(null)
     try {
       await loadLocalOutput(profileId)
+      await loadMonitorOutput(profileId)
       await loadTimeRules(profileId)
-      const st = await playoutService.start(profileId, playlistId)
+      const st = await playoutService.start(profileId, playlistId, startIndex)
       setStatus(st)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar')
     }
-  }, [loadLocalOutput, loadTimeRules])
+  }, [loadLocalOutput, loadMonitorOutput, loadTimeRules])
 
   const stop = useCallback(async () => {
     howlRef.current?.unload()
+    monitorHowlRef.current?.unload()
+    setCurrentSec(0)
+    setDurationSec(0)
     await playoutService.stop()
   }, [])
 
   const pause = useCallback(() => {
     howlRef.current?.pause()
+    monitorHowlRef.current?.pause()
     playoutService.pause()
   }, [])
 
   const resume = useCallback(() => {
     howlRef.current?.play()
+    monitorHowlRef.current?.play()
     playoutService.resume()
   }, [])
 
   const next = useCallback(() => {
     howlRef.current?.stop()
+    monitorHowlRef.current?.stop()
     playoutService.next()
+  }, [])
+
+  const jumpTo = useCallback((index: number) => {
+    howlRef.current?.stop()
+    monitorHowlRef.current?.stop()
+    playoutService.jumpTo(index)
+  }, [])
+
+  const seek = useCallback((sec: number) => {
+    howlRef.current?.seek(sec)
+    monitorHowlRef.current?.seek(sec)
+    setCurrentSec(sec)
   }, [])
 
   const triggerAdBlock = useCallback(async (adBlockId: string) => {
@@ -394,6 +479,10 @@ export function usePlayout() {
     pause,
     resume,
     next,
+    jumpTo,
+    seek,
+    currentSec,
+    durationSec,
     triggerAdBlock,
     adBreakTimer: {
       name: adBreakName,

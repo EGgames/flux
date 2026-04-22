@@ -119,14 +119,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Playout ────────────────────────────────────────────────
   playout: {
-    start: (profileId: string, playlistId?: string) =>
-      ipcRenderer.invoke('playout:start', profileId, playlistId),
+    start: (profileId: string, playlistId?: string, startIndex?: number) =>
+      ipcRenderer.invoke('playout:start', profileId, playlistId, startIndex),
     syncProgram: (profileId: string, playlistId?: string | null) =>
       ipcRenderer.invoke('playout:sync-program', profileId, playlistId),
     stop: () => ipcRenderer.invoke('playout:stop'),
     pause: () => ipcRenderer.invoke('playout:pause'),
     resume: () => ipcRenderer.invoke('playout:resume'),
     next: () => ipcRenderer.invoke('playout:next'),
+    jumpTo: (index: number) => ipcRenderer.invoke('playout:jump-to', index),
     getStatus: () => ipcRenderer.invoke('playout:status'),
     triggerAdBlock: (adBlockId: string) => ipcRenderer.invoke('playout:trigger-ad', adBlockId),
     streamChunk: (chunk: ArrayBuffer) => ipcRenderer.invoke('playout:stream-chunk', chunk)

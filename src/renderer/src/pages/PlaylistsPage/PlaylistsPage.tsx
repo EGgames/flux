@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react'
-import type { Playlist, Profile } from '../../types/ipc.types'
+import { useMemo, useState, useEffect, useCallback } from 'react'
+import type { Playlist, Profile, PlayoutStatus } from '../../types/ipc.types'
 import { usePlaylists } from '../../hooks/usePlaylists'
 import { usePrograms } from '../../hooks/usePrograms'
 import { playlistService } from '../../services/playlistService'
@@ -7,7 +7,17 @@ import PanelWorkspace from '../../components/PanelWorkspace/PanelWorkspace'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import styles from './PlaylistsPage.module.css'
 
-interface Props { activeProfile: Profile | null }
+interface PlayoutProp {
+  status: PlayoutStatus
+  start: (profileId: string, playlistId?: string, startIndex?: number) => Promise<void>
+  jumpTo: (index: number) => void
+  stop: () => Promise<void>
+}
+
+interface Props {
+  activeProfile: Profile | null
+  playout: PlayoutProp
+}
 
 const ACCEPTED_AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'])
 
@@ -34,7 +44,7 @@ function formatDuration(ms: number | null) {
   return `${min}:${sec.toString().padStart(2, '0')}`
 }
 
-export default function PlaylistsPage({ activeProfile }: Props) {
+export default function PlaylistsPage({ activeProfile, playout }: Props) {
   const profileId = activeProfile?.id ?? null
   const { playlists, create, remove, reload } = usePlaylists(profileId)
   const { programs } = usePrograms(profileId)
@@ -106,6 +116,18 @@ export default function PlaylistsPage({ activeProfile }: Props) {
     setSelected(updated)
   }
 
+  const handleDoubleClickTrack = useCallback(async (itemIndex: number) => {
+    if (!activeProfile || !selected) return
+    const isPlayingThisPlaylist =
+      playout.status.state !== 'stopped' &&
+      playout.status.queueLength === (selected.items?.length ?? 0)
+    if (isPlayingThisPlaylist) {
+      playout.jumpTo(itemIndex)
+    } else {
+      await playout.start(activeProfile.id, selected.id, itemIndex)
+    }
+  }, [activeProfile, selected, playout])
+
   const panels = useMemo(() => [
     {
       id: 'playlists',
@@ -169,14 +191,35 @@ export default function PlaylistsPage({ activeProfile }: Props) {
             onDrop={handleExternalDrop}
           >
             <div className={styles.trackList}>
-              {selected.items?.map((item) => (
-                <div key={item.id} className={styles.trackItem}>
-                  <span className={styles.trackPos}>{item.position}</span>
-                  <span className={styles.trackName}>{item.audioAsset.name}</span>
-                  <span className={styles.trackDur}>{formatDuration(item.audioAsset.durationMs)}</span>
-                  <button className={styles.btnDanger} onClick={() => handleRemoveItem(item.id)}>✕</button>
-                </div>
-              ))}
+              {selected.items?.map((item, idx) => {
+                let tags: string[] = []
+                try { tags = JSON.parse(item.audioAsset.tags) } catch { tags = [] }
+                const isCurrentTrack =
+                  playout.status.state !== 'stopped' &&
+                  playout.status.track?.id === item.audioAsset.id
+                return (
+                  <div
+                    key={item.id}
+                    className={`${styles.trackItem}${isCurrentTrack ? ` ${styles.trackPlaying}` : ''}`}
+                    title="Doble clic para reproducir"
+                    onDoubleClick={() => { void handleDoubleClickTrack(idx) }}
+                  >
+                    <span className={styles.trackPos}>
+                      {isCurrentTrack ? '▶' : item.position}
+                    </span>
+                    <div className={styles.trackInfo}>
+                      <span className={styles.trackName}>{item.audioAsset.name}</span>
+                      {tags.length > 0 && (
+                        <div className={styles.trackTags}>
+                          {tags.map((tag) => <span key={tag} className={styles.tag}>{tag}</span>)}
+                        </div>
+                      )}
+                    </div>
+                    <span className={styles.trackDur}>{formatDuration(item.audioAsset.durationMs)}</span>
+                    <button className={styles.btnDanger} onClick={() => { void handleRemoveItem(item.id) }}>✕</button>
+                  </div>
+                )
+              })}
               {!selected.items?.length && <div className={styles.empty}>Sin pistas. Agrega audios o arrastra archivos.</div>}
             </div>
           </div>
@@ -212,12 +255,15 @@ export default function PlaylistsPage({ activeProfile }: Props) {
     dropActive,
     dropFeedback,
     handleCreate,
+    handleDoubleClickTrack,
     handleExternalDrop,
     handleImport,
     handleRemoveItem,
     handleSelect,
     newName,
     playlists,
+    playout.status.state,
+    playout.status.track,
     remove,
     selected
   ])

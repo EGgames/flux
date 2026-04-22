@@ -97,7 +97,7 @@ export interface RadioProgram {
 export interface OutputIntegration {
   id: string
   profileId: string
-  outputType: 'local' | 'icecast' | 'shoutcast'
+  outputType: 'local' | 'icecast' | 'shoutcast' | 'monitor'
   config: string
   enabled: boolean
 }
@@ -172,12 +172,13 @@ export interface ElectronAPI {
     toggleEnabled: (id: string, enabled: boolean) => Promise<OutputIntegration>
   }
   playout: {
-    start: (profileId: string, playlistId?: string) => Promise<PlayoutStatus>
+    start: (profileId: string, playlistId?: string, startIndex?: number) => Promise<PlayoutStatus>
     syncProgram: (profileId: string, playlistId?: string | null) => Promise<PlayoutStatus>
     stop: () => Promise<{ success: boolean }>
     pause: () => Promise<{ success: boolean }>
     resume: () => Promise<{ success: boolean }>
     next: () => Promise<{ success: boolean }>
+    jumpTo: (index: number) => Promise<{ success: boolean }>
     getStatus: () => Promise<PlayoutStatus>
     triggerAdBlock: (adBlockId: string) => Promise<{ success: boolean }>
     streamChunk: (chunk: ArrayBuffer) => Promise<void>

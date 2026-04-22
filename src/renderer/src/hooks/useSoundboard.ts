@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Howl } from 'howler'
 import type { SoundboardButton } from '../types/ipc.types'
 import { soundboardService } from '../services/soundboardService'
 
@@ -39,7 +40,7 @@ export function useSoundboard(profileId: string | null) {
         const { mode, audioAsset } = result
         const src =
           audioAsset.sourceType === 'local'
-            ? `local-audio://${encodeURIComponent(audioAsset.sourcePath.replace(/\\/g, '/'))}`
+            ? `local-audio://?p=${encodeURIComponent(audioAsset.sourcePath)}`
             : audioAsset.sourcePath
 
         const existing = howlsRef.current.get(slotIndex)

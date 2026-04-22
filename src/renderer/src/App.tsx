@@ -39,7 +39,7 @@ export default function App() {
         />
         <Route
           path="/playlists"
-          element={<PlaylistsPage activeProfile={profiles.activeProfile} />}
+          element={<PlaylistsPage activeProfile={profiles.activeProfile} playout={playout} />}
         />
         <Route
           path="/soundboard"

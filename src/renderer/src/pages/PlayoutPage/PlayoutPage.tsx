@@ -16,6 +16,9 @@ interface Props {
     pause: () => void
     resume: () => void
     next: () => void
+    seek: (sec: number) => void
+    currentSec: number
+    durationSec: number
     adBreakTimer: {
       name: string | null
       elapsedLabel: string
@@ -43,6 +46,12 @@ function formatDuration(ms: number | null): string {
   const min = Math.floor(totalSec / 60)
   const sec = totalSec % 60
   return `${min}:${sec.toString().padStart(2, '0')}`
+}
+
+function formatSec(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 export default function PlayoutPage({ activeProfile, playout }: Props) {
@@ -106,12 +115,39 @@ export default function PlayoutPage({ activeProfile, playout }: Props) {
       minW: 320,
       minH: 190,
       defaultRect: { x: 544, y: 12, w: 360, h: 190 },
-      content: status.track ? (
-        <div>
-          <div className={styles.trackName}>{status.track.name}</div>
-          <div className={styles.trackMeta}>{formatDuration(status.track.durationMs)}</div>
-        </div>
-      ) : (
+      content: status.track ? (() => {
+        let tags: string[] = []
+        try { tags = JSON.parse(status.track.tags) } catch { tags = [] }
+        const fileName = status.track.sourceType === 'local'
+          ? status.track.sourcePath.split(/[\\/]/).pop() ?? status.track.sourcePath
+          : status.track.sourcePath
+        return (
+          <div>
+            <div className={styles.trackName}>{status.track.name}</div>
+            <div className={styles.trackPath} title={status.track.sourcePath}>{fileName}</div>
+            {tags.length > 0 && (
+              <div className={styles.trackTags}>
+                {tags.map((tag) => <span key={tag} className={styles.tag}>{tag}</span>)}
+              </div>
+            )}
+            <div className={styles.progressRow}>
+              <input
+                type="range"
+                className={styles.progressBar}
+                min={0}
+                max={playout.durationSec || 1}
+                step={1}
+                value={playout.currentSec}
+                onChange={(e) => playout.seek(Number(e.target.value))}
+              />
+              <div className={styles.progressLabels}>
+                <span>{formatSec(playout.currentSec)}</span>
+                <span>{playout.durationSec > 0 ? formatSec(playout.durationSec) : formatDuration(status.track.durationMs)}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })() : (
         <div className={styles.empty}>Sin reproducción activa</div>
       )
     },
@@ -243,6 +279,9 @@ export default function PlayoutPage({ activeProfile, playout }: Props) {
     playout.resetEqualizer,
     playout.setEqualizerBand,
     playout.toggleEqualizer,
+    playout.currentSec,
+    playout.durationSec,
+    playout.seek,
     stop
   ])
 

@@ -81,7 +81,7 @@ export class PlayoutService {
     private win: BrowserWindow
   ) {}
 
-  async start(profileId: string, playlistId?: string): Promise<PlayoutStatus> {
+  async start(profileId: string, playlistId?: string, startIndex = 0): Promise<PlayoutStatus> {
     this.profileId = profileId
     this.state = 'playing'
     this.songsSinceLastAd = 0
@@ -96,7 +96,7 @@ export class PlayoutService {
       this.queue = await this.resolveCurrentPlaylist(profileId)
     }
 
-    this.queueIndex = 0
+    this.queueIndex = Math.min(Math.max(0, startIndex), Math.max(0, this.queue.length - 1))
     this.emitStateChange()
     this.emitTrackChange()
     this.startSongCountWatcher(profileId)
@@ -119,20 +119,38 @@ export class PlayoutService {
   }
 
   async stop(): Promise<void> {
+    const profileId = this.profileId
     this.state = 'stopped'
     this.queue = []
     this.queueIndex = 0
     this.profileId = null
     this.clearSongCountWatcher()
     this.emitStateChange()
-    await this.db.playoutEvent.create({
-      data: { profileId: this.profileId, eventType: 'stop', payload: '{}' }
-    })
+    if (profileId) {
+      await this.db.playoutEvent.create({
+        data: { profileId, eventType: 'stop', payload: '{}' }
+      })
+    }
+  }
+
+  jumpTo(index: number): void {
+    if (this.queue.length === 0) return
+    const clamped = Math.min(Math.max(0, index), this.queue.length - 1)
+    this.queueIndex = clamped
+    this.emitTrackChange()
   }
 
   async next(): Promise<void> {
     if (this.queue.length === 0) return
-    this.queueIndex = (this.queueIndex + 1) % this.queue.length
+    const nextIndex = this.queueIndex + 1
+    if (nextIndex >= this.queue.length) {
+      this.state = 'stopped'
+      this.queueIndex = 0
+      this.clearSongCountWatcher()
+      this.emitStateChange()
+      return
+    }
+    this.queueIndex = nextIndex
     this.songsSinceLastAd++
     this.emitTrackChange()
     await this.checkSongCountRules()

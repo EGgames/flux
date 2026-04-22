@@ -1,6 +1,19 @@
-import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol } from 'electron'
 import { join } from 'path'
-import { pathToFileURL } from 'url'
+import { promises as fs } from 'fs'
+
+// Must be called before app.ready
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'local-audio',
+    privileges: {
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true
+    }
+  }
+])
 import { closeDb, getDb } from './db'
 import { registerProfileIpc } from './ipc/profiles.ipc'
 import { registerAudioAssetIpc } from './ipc/audioAssets.ipc'
@@ -47,12 +60,62 @@ function createWindow(): void {
   }
 }
 
+const AUDIO_CONTENT_TYPES: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  opus: 'audio/ogg; codecs=opus'
+}
+
 // Custom protocol to serve local audio files securely
+// URL format: local-audio://?p=C%3A%2FUsers%2F... (path as query param)
 function registerLocalAudioProtocol(): void {
-  protocol.handle('local-audio', (request) => {
-    const filePath = request.url.replace('local-audio://', '')
-    const decodedPath = decodeURIComponent(filePath)
-    return net.fetch(pathToFileURL(decodedPath).toString())
+  protocol.handle('local-audio', async (request) => {
+    try {
+      const url = new URL(request.url)
+      const filePath = url.searchParams.get('p')
+      if (!filePath) return new Response('Missing path', { status: 400 })
+
+      const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+      const contentType = AUDIO_CONTENT_TYPES[ext] ?? 'audio/mpeg'
+
+      const buffer = await fs.readFile(filePath)
+      const total = buffer.length
+      const rangeHeader = request.headers.get('range')
+
+      if (rangeHeader) {
+        const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader)
+        const start = match?.[1] ? parseInt(match[1]) : 0
+        const end = match?.[2] ? parseInt(match[2]) : total - 1
+        const chunk = buffer.slice(start, end + 1)
+        return new Response(chunk, {
+          status: 206,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Range': `bytes ${start}-${end}/${total}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': String(chunk.length),
+            'Access-Control-Allow-Origin': '*'
+          }
+        })
+      }
+
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(total),
+          'Access-Control-Allow-Origin': '*'
+        }
+      })
+    } catch (err) {
+      log.error('local-audio protocol error:', err)
+      return new Response('File not found', { status: 404 })
+    }
   })
 }
 

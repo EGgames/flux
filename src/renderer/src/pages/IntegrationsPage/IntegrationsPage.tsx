@@ -37,12 +37,14 @@ function parseConfig<T>(json: string, fallback: T): T {
 const DEFAULT_ICECAST: IcecastConfig = { host: '', port: '8000', mountpoint: '/stream', username: 'source', password: '' }
 const DEFAULT_SHOUTCAST: ShoutcastConfig = { host: '', port: '8000', password: '', stationId: '1' }
 const DEFAULT_LOCAL: LocalOutputConfig = { deviceId: 'default', deviceName: 'Salida del sistema (default)' }
+const DEFAULT_MONITOR: LocalOutputConfig = { deviceId: 'default', deviceName: 'Salida del sistema (default)' }
 
 export default function IntegrationsPage({ profileId }: Props) {
   const [outputs, setOutputs] = useState<OutputIntegration[]>([])
   const [icecastCfg, setIcecastCfg] = useState<IcecastConfig>(DEFAULT_ICECAST)
   const [shoutcastCfg, setShoutcastCfg] = useState<ShoutcastConfig>(DEFAULT_SHOUTCAST)
   const [localCfg, setLocalCfg] = useState<LocalOutputConfig>(DEFAULT_LOCAL)
+  const [monitorCfg, setMonitorCfg] = useState<LocalOutputConfig>(DEFAULT_MONITOR)
   const [devices, setDevices] = useState<AudioOutputDevice[]>([])
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
   const [saving, setSaving] = useState(false)
@@ -50,6 +52,7 @@ export default function IntegrationsPage({ profileId }: Props) {
   const local = outputs.find((o) => o.outputType === 'local')
   const icecast = outputs.find((o) => o.outputType === 'icecast')
   const shoutcast = outputs.find((o) => o.outputType === 'shoutcast')
+  const monitor = outputs.find((o) => o.outputType === 'monitor')
 
   useEffect(() => {
     const loadDevices = async () => {
@@ -79,6 +82,8 @@ export default function IntegrationsPage({ profileId }: Props) {
       if (lc) setLocalCfg(parseConfig(lc.config, DEFAULT_LOCAL))
       if (ic) setIcecastCfg(parseConfig(ic.config, DEFAULT_ICECAST))
       if (sc) setShoutcastCfg(parseConfig(sc.config, DEFAULT_SHOUTCAST))
+      const mc = data.find((o) => o.outputType === 'monitor')
+      if (mc) setMonitorCfg(parseConfig(mc.config, DEFAULT_MONITOR))
     })
   }, [profileId])
 
@@ -115,6 +120,22 @@ export default function IntegrationsPage({ profileId }: Props) {
     const saved = await outputService.save({ profileId, outputType: 'shoutcast', config: JSON.stringify(shoutcastCfg), enabled: shoutcast?.enabled ?? false })
     setOutputs((prev) => {
       const filtered = prev.filter((o) => o.outputType !== 'shoutcast')
+      return [...filtered, saved]
+    })
+    setSaving(false)
+  }
+
+  const handleSaveMonitor = async () => {
+    if (!profileId) return
+    setSaving(true)
+    const saved = await outputService.save({
+      profileId,
+      outputType: 'monitor',
+      config: JSON.stringify(monitorCfg),
+      enabled: monitor?.enabled ?? false
+    })
+    setOutputs((prev) => {
+      const filtered = prev.filter((o) => o.outputType !== 'monitor')
       return [...filtered, saved]
     })
     setSaving(false)
@@ -189,6 +210,49 @@ export default function IntegrationsPage({ profileId }: Props) {
             {testResults[local.id].message}
           </div>
         )}
+      </div>
+
+      {/* Monitor de Audio */}
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>
+          <span className={`${styles.statusDot} ${monitor?.enabled ? styles.connected : ''}`} />
+          Monitor de audio
+          {monitor && (
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                className={styles.checkbox}
+                checked={monitor.enabled}
+                onChange={(e) => handleToggle(monitor.id, e.target.checked)}
+              />
+              Habilitado
+            </label>
+          )}
+        </div>
+        <p className={styles.monitorHint}>Dispositivo secundario para escuchar la salida en cabina (auriculares o monitores de estudio).</p>
+        <div className={styles.fields}>
+          <div className={styles.field}>
+            <label className={styles.label}>Dispositivo de monitoreo</label>
+            <select
+              value={monitorCfg.deviceId}
+              onChange={(e) => {
+                const selected = devices.find((device) => device.deviceId === e.target.value)
+                setMonitorCfg({
+                  deviceId: e.target.value,
+                  deviceName: selected?.label ?? 'Salida del sistema (default)'
+                })
+              }}
+            >
+              <option value="default">Salida del sistema (default)</option>
+              {devices.map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className={styles.actions}>
+          <button className={styles.btnPrimary} onClick={handleSaveMonitor} disabled={saving}>Guardar</button>
+        </div>
       </div>
 
       {/* Icecast */}

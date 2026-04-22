@@ -1,8 +1,14 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { Howl } from 'howler'
 import { usePlayout } from '@renderer/hooks/usePlayout'
 import { playoutService } from '@renderer/services/playoutService'
 import { outputService } from '@renderer/services/outputService'
+
+vi.mock('howler', () => ({
+  Howl: vi.fn(),
+  Howler: { ctx: null, masterGain: null }
+}))
 
 vi.mock('@renderer/services/playoutService', () => ({
   playoutService: {
@@ -27,27 +33,28 @@ vi.mock('@renderer/services/outputService', () => ({
 const mocked = vi.mocked(playoutService)
 const mockedOutput = vi.mocked(outputService)
 
+const defaultHowlInstance = {
+  play: vi.fn(),
+  pause: vi.fn(),
+  stop: vi.fn(),
+  unload: vi.fn(),
+  seek: vi.fn((pos?: number) => pos ?? 0),
+  duration: vi.fn(() => 0),
+  playing: vi.fn(() => false),
+  fade: vi.fn()
+}
+
 describe('usePlayout', () => {
   const callbacks: Record<string, (...args: unknown[]) => void> = {}
   const on = vi.fn((channel: string, cb: (...args: unknown[]) => void) => { callbacks[channel] = cb })
   const off = vi.fn()
-
-  const howlInstance = {
-    play: vi.fn(),
-    pause: vi.fn(),
-    stop: vi.fn(),
-    unload: vi.fn()
-  }
 
   beforeEach(() => {
     vi.clearAllMocks()
     mockedOutput.list.mockResolvedValue([])
     Object.keys(callbacks).forEach((k) => delete callbacks[k])
 
-    ;(globalThis as unknown as { Howl: unknown }).Howl = vi.fn((opts: { onend?: () => void; onloaderror?: () => void }) => {
-      ;(globalThis as unknown as { __lastHowlOptions?: unknown }).__lastHowlOptions = opts
-      return howlInstance
-    })
+    vi.mocked(Howl).mockImplementation(() => defaultHowlInstance as unknown as Howl)
 
     Object.defineProperty(window, 'electronAPI', {
       value: {
@@ -90,7 +97,7 @@ describe('usePlayout', () => {
       id: 'a1',
       name: 'Track',
       sourceType: 'local',
-      sourcePath: 'C\\music\\song.mp3',
+      sourcePath: 'C:\\music\\song.mp3',
       durationMs: null,
       tags: '{}',
       createdAt: '',
@@ -102,16 +109,17 @@ describe('usePlayout', () => {
     })
 
     expect(result.current.status.track?.id).toBe('a1')
-    expect(howlInstance.play).toHaveBeenCalled()
+    expect(defaultHowlInstance.play).toHaveBeenCalled()
 
-    const opts = (globalThis as unknown as { __lastHowlOptions: { onend?: () => void; onloaderror?: () => void } }).__lastHowlOptions
+    const opts = vi.mocked(Howl).mock.calls.at(-1)?.[0] as Record<string, unknown>
+
     act(() => {
-      opts.onend?.()
+      ;(opts.onend as () => void)?.() 
     })
     expect(window.electronAPI.playout.next).toHaveBeenCalledTimes(1)
 
     act(() => {
-      opts.onloaderror?.()
+      ;(opts.onloaderror as (id: number, err: unknown) => void)?.(0, 'err')
     })
     await waitFor(() => {
       expect(result.current.error).toContain('No se pudo cargar')
@@ -136,8 +144,8 @@ describe('usePlayout', () => {
       callbacks['playout:track-changed']?.({ track })
     })
 
-    const opts = (globalThis as unknown as { __lastHowlOptions: { src: string[] } }).__lastHowlOptions
-    expect(opts.src[0]).toBe('https://example.com/live.mp3')
+    const opts = vi.mocked(Howl).mock.calls.at(-1)?.[0] as Record<string, unknown>
+    expect((opts.src as string[])[0]).toBe('https://example.com/live.mp3')
   })
 
   it('start handles success and error branches', async () => {
@@ -176,7 +184,7 @@ describe('usePlayout', () => {
       id: 'a3',
       name: 'Local',
       sourceType: 'local',
-      sourcePath: 'C\\music\\local.mp3',
+      sourcePath: 'C:\\music\\local.mp3',
       durationMs: null,
       tags: '{}',
       createdAt: '',

@@ -1,7 +1,13 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { Howl } from 'howler'
 import { useSoundboard } from '@renderer/hooks/useSoundboard'
 import { soundboardService } from '@renderer/services/soundboardService'
+
+vi.mock('howler', () => ({
+  Howl: vi.fn(),
+  Howler: { ctx: null, masterGain: null }
+}))
 
 vi.mock('@renderer/services/soundboardService', () => ({
   soundboardService: {
@@ -12,6 +18,10 @@ vi.mock('@renderer/services/soundboardService', () => ({
 }))
 
 const mocked = vi.mocked(soundboardService)
+
+function makeHowl(playing = false) {
+  return { play: vi.fn(), stop: vi.fn(), playing: vi.fn(() => playing) }
+}
 
 function button(slotIndex: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -39,12 +49,7 @@ function button(slotIndex: number, overrides: Record<string, unknown> = {}) {
 describe('useSoundboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    const howlInstance = {
-      play: vi.fn(),
-      stop: vi.fn(),
-      playing: vi.fn(() => false)
-    }
-    ;(globalThis as unknown as { Howl: unknown }).Howl = vi.fn(() => howlInstance)
+    vi.mocked(Howl).mockImplementation(() => makeHowl() as unknown as Howl)
   })
 
   it('does not load with null profile', async () => {
@@ -77,20 +82,11 @@ describe('useSoundboard', () => {
   })
 
   it('triggers oneshot and toggle-stop branch', async () => {
-    const playingHowl = {
-      play: vi.fn(),
-      stop: vi.fn(),
-      playing: vi.fn(() => true)
-    }
-    const idleHowl = {
-      play: vi.fn(),
-      stop: vi.fn(),
-      playing: vi.fn(() => false)
-    }
-    const howlFactory = vi.fn()
-      .mockImplementationOnce(() => playingHowl)
-      .mockImplementation(() => idleHowl)
-    ;(globalThis as unknown as { Howl: unknown }).Howl = howlFactory
+    const playingHowl = makeHowl(true)
+    const idleHowl = makeHowl(false)
+    vi.mocked(Howl)
+      .mockImplementationOnce(() => playingHowl as unknown as Howl)
+      .mockImplementation(() => idleHowl as unknown as Howl)
 
     mocked.get.mockResolvedValue([button(1)] as never)
     mocked.trigger
@@ -118,20 +114,11 @@ describe('useSoundboard', () => {
   })
 
   it('stops existing howl on non-toggle re-trigger', async () => {
-    const first = {
-      play: vi.fn(),
-      stop: vi.fn(),
-      playing: vi.fn(() => false)
-    }
-    const second = {
-      play: vi.fn(),
-      stop: vi.fn(),
-      playing: vi.fn(() => false)
-    }
-    const howlFactory = vi.fn()
-      .mockImplementationOnce(() => first)
-      .mockImplementationOnce(() => second)
-    ;(globalThis as unknown as { Howl: unknown }).Howl = howlFactory
+    const first = makeHowl(false)
+    const second = makeHowl(false)
+    vi.mocked(Howl)
+      .mockImplementationOnce(() => first as unknown as Howl)
+      .mockImplementationOnce(() => second as unknown as Howl)
 
     mocked.get.mockResolvedValue([button(1)] as never)
     mocked.trigger.mockResolvedValue({ mode: 'oneshot', audioAsset: button(1).audioAsset } as never)
@@ -146,12 +133,7 @@ describe('useSoundboard', () => {
   })
 
   it('uses stream source path when sourceType is stream', async () => {
-    const howlFactory = vi.fn(() => ({
-      play: vi.fn(),
-      stop: vi.fn(),
-      playing: vi.fn(() => false)
-    }))
-    ;(globalThis as unknown as { Howl: unknown }).Howl = howlFactory
+    vi.mocked(Howl).mockImplementation(() => makeHowl() as unknown as Howl)
 
     mocked.get.mockResolvedValue([button(1)] as never)
     mocked.trigger.mockResolvedValue({
@@ -167,7 +149,7 @@ describe('useSoundboard', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     await act(async () => { await result.current.trigger(1) })
 
-    expect(howlFactory).toHaveBeenCalledWith(
+    expect(vi.mocked(Howl)).toHaveBeenCalledWith(
       expect.objectContaining({
         src: ['https://example.com/jingle.mp3']
       })
