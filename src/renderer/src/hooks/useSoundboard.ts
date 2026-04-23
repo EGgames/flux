@@ -6,6 +6,8 @@ import { soundboardService } from '../services/soundboardService'
 export function useSoundboard(profileId: string | null) {
   const [buttons, setButtons] = useState<SoundboardButton[]>([])
   const [loading, setLoading] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [gridResetKey, setGridResetKey] = useState(0)
   const howlsRef = useRef<Map<number, Howl>>(new Map())
 
   const load = useCallback(async () => {
@@ -62,5 +64,22 @@ export function useSoundboard(profileId: string | null) {
     [profileId]
   )
 
-  return { buttons, loading, assign, trigger, reload: load }
+  const stopAll = useCallback(() => {
+    howlsRef.current.forEach((h) => h.stop())
+    howlsRef.current.clear()
+    setIsPaused(false)
+    setGridResetKey((k) => k + 1)
+  }, [])
+
+  const pauseAll = useCallback(() => {
+    howlsRef.current.forEach((h) => { if (h.playing()) h.pause() })
+    setIsPaused(true)
+  }, [])
+
+  const resumeAll = useCallback(() => {
+    howlsRef.current.forEach((h) => h.play())
+    setIsPaused(false)
+  }, [])
+
+  return { buttons, loading, assign, trigger, reload: load, stopAll, pauseAll, resumeAll, isPaused, gridResetKey }
 }

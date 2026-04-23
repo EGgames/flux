@@ -22,8 +22,11 @@ export default function App() {
       playoutControls={{
         pause: playout.pause,
         resume: playout.resume,
+        prev: playout.prev,
         next: playout.next,
-        stop: playout.stop
+        stop: playout.stop,
+        volume: playout.volume,
+        setVolume: playout.setVolume
       }}
     >
       <Routes>
@@ -33,6 +36,7 @@ export default function App() {
           element={
             <PlayoutPage
               activeProfile={profiles.activeProfile}
+              profiles={profiles}
               playout={playout}
             />
           }

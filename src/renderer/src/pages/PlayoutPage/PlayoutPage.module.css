@@ -69,6 +69,23 @@
   color: var(--color-text-muted);
 }
 
+.generalPlaylistRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.generalPlaylistRow .label {
+  white-space: nowrap;
+}
+
+.generalPlaylistRow .select {
+  flex: 1;
+  min-width: 140px;
+}
+
 .label {
   color: var(--color-text);
   font-weight: 700;
@@ -91,10 +108,16 @@
   border-radius: var(--radius);
   border: 1px solid transparent;
   transition: background var(--transition);
+  cursor: pointer;
 }
 
 .queueItem:hover {
   background: var(--color-panel-alt);
+}
+
+.queueItem.selected {
+  background: var(--color-panel-alt);
+  border-color: var(--color-accent);
 }
 
 .queueItem.current {
@@ -192,6 +215,13 @@
   color: var(--color-text-muted);
 }
 
+.queueDur {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #888);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .queueDuration {
   font-size: 11px;
   color: var(--color-text-muted);
@@ -262,4 +292,20 @@
   border: 1px solid var(--color-border);
   border-radius: 20px;
   color: var(--color-text-muted);
+}
+
+/* Soundboard panel inside workspace */
+.soundboardPanelWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  overflow: auto;
+}
+
+.soundboardPanelControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
 }

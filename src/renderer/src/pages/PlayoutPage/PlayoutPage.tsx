@@ -1,20 +1,35 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Profile } from '../../types/ipc.types'
 import { usePlaylists } from '../../hooks/usePlaylists'
 import { usePrograms } from '../../hooks/usePrograms'
+import { useSoundboard } from '../../hooks/useSoundboard'
 import PanelWorkspace from '../../components/PanelWorkspace/PanelWorkspace'
+import SoundboardGrid from '../../components/SoundboardGrid/SoundboardGrid'
+import ProgramsPage from '../ProgramsPage/ProgramsPage'
+import IntegrationsPage from '../IntegrationsPage/IntegrationsPage'
+import ProfilesPage from '../ProfilesPage/ProfilesPage'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import styles from './PlayoutPage.module.css'
 
 interface Props {
   activeProfile: Profile | null
+  profiles: {
+    profiles: Profile[]
+    activeProfile: Profile | null
+    create: (name: string) => Promise<Profile>
+    select: (id: string) => Promise<Profile>
+    remove: (id: string) => Promise<void>
+    update: (id: string, data: { name?: string; preferences?: string }) => Promise<Profile>
+  }
   playout: {
     status: import('../../types/ipc.types').PlayoutStatus
+    queue: Array<{ id: string; name: string; durationMs: number | null }>
     error: string | null
     start: (profileId: string, playlistId?: string) => Promise<void>
     stop: () => Promise<void>
     pause: () => void
     resume: () => void
+    prev: () => void
     next: () => void
     seek: (sec: number) => void
     currentSec: number
@@ -54,20 +69,63 @@ function formatSec(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export default function PlayoutPage({ activeProfile, playout }: Props) {
+export default function PlayoutPage({ activeProfile, profiles, playout }: Props) {
   const { playlists } = usePlaylists(activeProfile?.id ?? null)
   const { programs } = usePrograms(activeProfile?.id ?? null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('')
   const [layoutProgramId, setLayoutProgramId] = useState<string>('')
   const { layout, saveLayout, workspaceHeight, saveWorkspaceHeight } = useWorkspaceLayout(activeProfile, 'playout-workspace', layoutProgramId || '__default')
-  const { status, error, start, stop } = playout
+  const { status, error, start, stop, prev, next, jumpTo } = playout
+
+  const { buttons: sbButtons, assign: sbAssign, trigger: sbTrigger, stopAll: sbStop, pauseAll: sbPause, resumeAll: sbResume, isPaused: sbPaused, gridResetKey: sbResetKey } = useSoundboard(activeProfile?.id ?? null)
+  const [sbAssignSlot, setSbAssignSlot] = useState<number | null>(null)
+
+  // Lista general: se lee de profile.preferences y se guarda allí
+  const [generalPlaylistId, setGeneralPlaylistId] = useState<string>('')
+  const prevProfileIdRef = useRef<string | null>(null)
+
+  // Cuando cambia el perfil activo, sincronizar generalPlaylistId desde preferences
+  useEffect(() => {
+    if (activeProfile?.id === prevProfileIdRef.current) return
+    prevProfileIdRef.current = activeProfile?.id ?? null
+    try {
+      const prefs = JSON.parse(activeProfile?.preferences ?? '{}') as { generalPlaylistId?: string }
+      setGeneralPlaylistId(prefs.generalPlaylistId ?? '')
+    } catch {
+      setGeneralPlaylistId('')
+    }
+  }, [activeProfile])
+
+  const saveGeneralPlaylist = useCallback(async (playlistId: string) => {
+    if (!activeProfile) return
+    setGeneralPlaylistId(playlistId)
+    try {
+      const current = JSON.parse(activeProfile.preferences ?? '{}') as Record<string, unknown>
+      const updated = { ...current, generalPlaylistId: playlistId || null }
+      await profiles.update(activeProfile.id, { preferences: JSON.stringify(updated) })
+    } catch {
+      // preferences update failure is non-critical
+    }
+  }, [activeProfile, profiles])
+  const handleSbAssign = useCallback(async (slotIndex: number) => {
+    setSbAssignSlot(slotIndex)
+    const paths = await window.electronAPI.audioAssets.pickFiles()
+    if (!paths.length) { setSbAssignSlot(null); return }
+    const [asset] = await window.electronAPI.audioAssets.importBatch(paths)
+    await sbAssign(slotIndex, { audioAssetId: asset.id, label: asset.name })
+    setSbAssignSlot(null)
+  }, [sbAssign])
+
+  const [selectedQueueIdx, setSelectedQueueIdx] = useState<number | null>(null)
 
   const isActive = status.state !== 'stopped'
 
   const handleStart = useCallback(() => {
     if (!activeProfile) return
-    start(activeProfile.id, selectedPlaylistId || undefined)
-  }, [activeProfile, selectedPlaylistId, start])
+    // Si hay una playlist manual seleccionada úsala, si no usa la lista general del perfil
+    const playlistToUse = selectedPlaylistId || generalPlaylistId || undefined
+    start(activeProfile.id, playlistToUse)
+  }, [activeProfile, selectedPlaylistId, generalPlaylistId, start])
 
   const panels = useMemo(() => [
     {
@@ -96,15 +154,47 @@ export default function PlayoutPage({ activeProfile, playout }: Props) {
                 ▶ Iniciar
               </button>
             ) : (
-              <button className={styles.btnSecondary} onClick={stop}>
-                ⏹ Detener
-              </button>
+              <>
+                <button className={styles.btnSecondary} onClick={stop}>
+                  ⏹ Detener
+                </button>
+                <button
+                  className={styles.btnSecondary}
+                  onClick={prev}
+                  disabled={status.queueIndex <= 0}
+                  title="Anterior"
+                >
+                  ⏮
+                </button>
+                <button
+                  className={styles.btnSecondary}
+                  onClick={next}
+                  disabled={status.queueIndex >= status.queueLength - 1}
+                  title="Siguiente"
+                >
+                  ⏭
+                </button>
+              </>
             )}
           </div>
           <div className={styles.stats}>
             <div><span className={styles.label}>Estado:</span> {status.state}</div>
             <div><span className={styles.label}>Cola:</span> {status.queueLength}</div>
             <div><span className={styles.label}>Canciones desde tanda:</span> {status.songsSinceLastAd}</div>
+          </div>
+          <div className={styles.generalPlaylistRow}>
+            <span className={styles.label}>Lista general (sin programa):</span>
+            <select
+              className={styles.select}
+              value={generalPlaylistId}
+              onChange={(e) => saveGeneralPlaylist(e.target.value)}
+              disabled={isActive}
+            >
+              <option value="">— Ninguna —</option>
+              {playlists.map((pl) => (
+                <option key={pl.id} value={pl.id}>{pl.name}</option>
+              ))}
+            </select>
           </div>
         </div>
       )
@@ -161,13 +251,27 @@ export default function PlayoutPage({ activeProfile, playout }: Props) {
         <div className={styles.empty}>Inicia el playout para ver la cola</div>
       ) : (
         <div className={styles.queue}>
-          {Array.from({ length: status.queueLength }).map((_, i) => (
+          {(playout.queue.length > 0 ? playout.queue : Array.from({ length: status.queueLength })).map((item, i) => (
             <div
               key={i}
-              className={`${styles.queueItem}${i === status.queueIndex ? ` ${styles.current}` : ''}`}
+              className={[
+                styles.queueItem,
+                i === status.queueIndex ? styles.current : '',
+                i === selectedQueueIdx && i !== status.queueIndex ? styles.selected : ''
+              ].filter(Boolean).join(' ')}
+              onClick={() => setSelectedQueueIdx(i)}
+              onDoubleClick={() => { jumpTo(i); setSelectedQueueIdx(null) }}
+              title="Clic para seleccionar · Doble clic para reproducir"
             >
-              <span className={styles.queueIndex}>{i + 1}</span>
-              <span className={styles.queueName}>Pista {i + 1}</span>
+              <span className={styles.queueIndex}>
+                {i === status.queueIndex ? '▶' : `${i + 1}`}
+              </span>
+              <span className={styles.queueName}>
+                {(item as { name?: string })?.name ?? `Pista ${i + 1}`}
+              </span>
+              {(item as { durationMs?: number | null })?.durationMs != null && (
+                <span className={styles.queueDur}>{formatDuration((item as { durationMs: number }).durationMs)}</span>
+              )}
             </div>
           ))}
         </div>
@@ -255,6 +359,60 @@ export default function PlayoutPage({ activeProfile, playout }: Props) {
           <button className={styles.btnSecondary} onClick={playout.resetEqualizer}>Reset EQ</button>
         </div>
       )
+    },
+    {
+      id: 'soundboard',
+      title: 'Soundboard',
+      minW: 480,
+      minH: 300,
+      defaultRect: { x: 12, y: 590, w: 640, h: 340 },
+      content: (
+        <div className={styles.soundboardPanelWrap}>
+          <div className={styles.soundboardPanelControls}>
+            <button className={styles.btnSecondary} onClick={sbStop} title="Detener todo">⏹ Stop</button>
+            {sbPaused ? (
+              <button className={styles.btnPrimary} onClick={sbResume} title="Reanudar todo">▶ Reanudar</button>
+            ) : (
+              <button className={styles.btnSecondary} onClick={sbPause} title="Pausar todo">⏸ Pausar</button>
+            )}
+          </div>
+          <SoundboardGrid
+            key={sbResetKey}
+            buttons={sbButtons}
+            onTrigger={sbTrigger}
+            onAssign={handleSbAssign}
+          />
+          {sbAssignSlot !== null && (
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
+              Seleccionando audio para botón {sbAssignSlot}…
+            </div>
+          )}
+        </div>
+      )
+    },
+    {
+      id: 'programs',
+      title: 'Grilla de Programas',
+      minW: 540,
+      minH: 320,
+      defaultRect: { x: 664, y: 590, w: 580, h: 380 },
+      content: <ProgramsPage profileId={activeProfile?.id ?? null} />
+    },
+    {
+      id: 'outputs',
+      title: 'Salidas',
+      minW: 400,
+      minH: 320,
+      defaultRect: { x: 12, y: 950, w: 620, h: 420 },
+      content: <IntegrationsPage profileId={activeProfile?.id ?? null} />
+    },
+    {
+      id: 'profiles',
+      title: 'Perfiles',
+      minW: 320,
+      minH: 240,
+      defaultRect: { x: 644, y: 950, w: 400, h: 300 },
+      content: <ProfilesPage profiles={profiles} />
     }
   ], [
     activeProfile,
@@ -282,7 +440,21 @@ export default function PlayoutPage({ activeProfile, playout }: Props) {
     playout.currentSec,
     playout.durationSec,
     playout.seek,
-    stop
+    selectedQueueIdx,
+    stop,
+    sbButtons,
+    sbTrigger,
+    sbAssign,
+    sbStop,
+    sbPause,
+    sbResume,
+    sbPaused,
+    sbResetKey,
+    sbAssignSlot,
+    handleSbAssign,
+    profiles,
+    generalPlaylistId,
+    saveGeneralPlaylist
   ])
 
   return (

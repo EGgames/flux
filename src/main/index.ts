@@ -1,8 +1,9 @@
 import { app, BrowserWindow, ipcMain, protocol } from 'electron'
 import { join } from 'path'
 import { promises as fs } from 'fs'
+import http from 'http'
 
-// Must be called before app.ready
+// Must be called before app.ready — keep scheme registered even though we use HTTP server
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'local-audio',
@@ -10,7 +11,8 @@ protocol.registerSchemesAsPrivileged([
       secure: true,
       supportFetchAPI: true,
       stream: true,
-      bypassCSP: true
+      bypassCSP: true,
+      corsEnabled: true
     }
   }
 ])
@@ -30,6 +32,7 @@ import log from 'electron-log'
 let mainWindow: BrowserWindow | null = null
 let schedulerService: SchedulerService | null = null
 export let streamingService: StreamingService | null = null
+let audioServerPort: number | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -119,6 +122,71 @@ function registerLocalAudioProtocol(): void {
   })
 }
 
+const ALLOWED_AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus'])
+
+function startAudioHttpServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer(async (req, res) => {
+      try {
+        const urlObj = new URL(req.url ?? '/', 'http://localhost')
+        const filePath = urlObj.searchParams.get('p')
+        if (!filePath) {
+          res.writeHead(400)
+          res.end('Bad Request')
+          return
+        }
+
+        const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+        if (!ALLOWED_AUDIO_EXTENSIONS.has(ext)) {
+          res.writeHead(403)
+          res.end('Forbidden')
+          return
+        }
+
+        const contentType = AUDIO_CONTENT_TYPES[ext] ?? 'audio/mpeg'
+        const buffer = await fs.readFile(filePath)
+        const total = buffer.length
+        const rangeHeader = req.headers.range
+
+        if (rangeHeader) {
+          const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader)
+          const start = match?.[1] ? parseInt(match[1]) : 0
+          const end = match?.[2] ? parseInt(match[2]) : total - 1
+          const chunk = buffer.slice(start, end + 1)
+          res.writeHead(206, {
+            'Content-Type': contentType,
+            'Content-Range': `bytes ${start}-${end}/${total}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunk.length,
+            'Access-Control-Allow-Origin': '*'
+          })
+          res.end(chunk)
+        } else {
+          res.writeHead(200, {
+            'Content-Type': contentType,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': total,
+            'Access-Control-Allow-Origin': '*'
+          })
+          res.end(buffer)
+        }
+      } catch (err) {
+        log.error('Audio HTTP server error:', err)
+        res.writeHead(404)
+        res.end('Not Found')
+      }
+    })
+
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address() as { port: number }
+      audioServerPort = addr.port
+      log.info(`Audio HTTP server started on port ${audioServerPort}`)
+      resolve()
+    })
+    server.on('error', reject)
+  })
+}
+
 async function initializeApp(): Promise<void> {
   const db = getDb()
 
@@ -144,11 +212,23 @@ async function initializeApp(): Promise<void> {
   registerOutputIpc(db, streamingService)
   registerPlayoutIpc(db, schedulerService, streamingService, mainWindow!)
 
+  ipcMain.handle('audio:server-port', () => audioServerPort)
+
+  // Window controls
+  ipcMain.handle('window:minimize', () => mainWindow?.minimize())
+  ipcMain.handle('window:maximize', () => {
+    if (mainWindow?.isMaximized()) mainWindow.restore()
+    else mainWindow?.maximize()
+  })
+  ipcMain.handle('window:close', () => mainWindow?.close())
+  ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized() ?? false)
+
   await schedulerService.start()
   log.info('FLUX started')
 }
 
 app.whenReady().then(async () => {
+  await startAudioHttpServer()
   registerLocalAudioProtocol()
   createWindow()
   await initializeApp()

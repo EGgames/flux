@@ -6,8 +6,11 @@ interface Props {
   controls: {
     pause: () => void
     resume: () => void
+    prev: () => void
     next: () => void
     stop: () => void
+    volume: number
+    setVolume: (v: number) => void
   }
 }
 
@@ -23,6 +26,7 @@ export default function NowPlayingBar({ status, controls }: Props) {
   const isPlaying = state === 'playing'
   const isPaused = state === 'paused'
   const isAdBreak = state === 'ad_break'
+  const volumePct = Math.round(controls.volume * 100)
 
   const stateClass =
     isAdBreak
@@ -53,12 +57,32 @@ export default function NowPlayingBar({ status, controls }: Props) {
             ▶
           </button>
         )}
+        <button className={styles.btn} onClick={controls.prev} title="Anterior" disabled={state === 'stopped' || status.queueIndex <= 0}>
+          ⏮
+        </button>
         <button className={styles.btn} onClick={controls.next} title="Siguiente" disabled={state === 'stopped'}>
           ⏭
         </button>
         <button className={styles.btn} onClick={controls.stop} title="Detener" disabled={state === 'stopped'}>
           ⏹
         </button>
+      </div>
+
+      <div className={styles.volumeControl}>
+        <span className={styles.volumeIcon} title={`Volumen: ${volumePct}%`}>
+          {controls.volume === 0 ? '🔇' : controls.volume < 0.5 ? '🔉' : '🔊'}
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={controls.volume}
+          onChange={(e) => controls.setVolume(parseFloat(e.target.value))}
+          className={styles.volumeSlider}
+          title={`Volumen: ${volumePct}%`}
+        />
+        <span className={styles.volumeLabel}>{volumePct}%</span>
       </div>
 
       <span className={`${styles.state} ${stateClass}`}>

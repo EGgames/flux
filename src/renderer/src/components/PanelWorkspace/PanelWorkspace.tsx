@@ -68,6 +68,8 @@ export default function PanelWorkspace({
   const [rects, setRects] = useState<Record<string, PanelRect>>(() => applyDefaults(panels, savedLayout))
   const [order, setOrder] = useState<string[]>(() => panels.map((panel) => panel.id))
   const [isMobile, setIsMobile] = useState(false)
+  const [hiddenPanelIds, setHiddenPanelIds] = useState<string[]>([])
+  const [showAddMenu, setShowAddMenu] = useState(false)
 
   const dragStateRef = useRef<{
     panelId: string
@@ -127,8 +129,19 @@ export default function PanelWorkspace({
   const sortedPanels = useMemo(() => {
     return order
       .map((id) => panelLookup[id])
-      .filter((panel): panel is PanelConfig => Boolean(panel))
-  }, [order, panelLookup])
+      .filter((panel): panel is PanelConfig => Boolean(panel) && !hiddenPanelIds.includes(panel.id))
+  }, [order, panelLookup, hiddenPanelIds])
+
+  const hiddenPanels = useMemo(
+    () => panels.filter((p) => hiddenPanelIds.includes(p.id)),
+    [panels, hiddenPanelIds]
+  )
+
+  const closePanel = (id: string) => setHiddenPanelIds((prev) => [...prev, id])
+  const reopenPanel = (id: string) => {
+    setHiddenPanelIds((prev) => prev.filter((h) => h !== id))
+    setShowAddMenu(false)
+  }
 
   const startInteraction = (event: React.MouseEvent, panelId: string, mode: DragMode) => {
     if (isMobile) return
@@ -254,6 +267,22 @@ export default function PanelWorkspace({
           <button className={styles.toolbarBtn} onClick={() => updateWorkspaceHeight(workspaceHeight + 80)}>+</button>
           <span className={styles.sizeValue}>{workspaceHeight}px</span>
           <button className={styles.toolbarBtn} onClick={handleAutoFit}>Auto-ajustar</button>
+          {hiddenPanels.length > 0 && (
+            <div className={styles.addPanelWrap}>
+              <button className={`${styles.toolbarBtn} ${styles.toolbarBtnAccent}`} onClick={() => setShowAddMenu((v) => !v)}>
+                + Añadir panel
+              </button>
+              {showAddMenu && (
+                <div className={styles.addPanelMenu}>
+                  {hiddenPanels.map((p) => (
+                    <button key={p.id} className={styles.addPanelItem} onClick={() => reopenPanel(p.id)}>
+                      {p.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -286,7 +315,17 @@ export default function PanelWorkspace({
                 onMouseDown={(event) => startInteraction(event, panel.id, 'move')}
               >
                 <h3 className={styles.panelTitle}>{panel.title}</h3>
-                <span className={styles.dragMark}>Mover</span>
+                <div className={styles.panelHeaderRight}>
+                  <span className={styles.dragMark}>Mover</span>
+                  <button
+                    className={styles.panelCloseBtn}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => closePanel(panel.id)}
+                    title={`Cerrar ${panel.title}`}
+                  >
+                    ✕
+                  </button>
+                </div>
               </header>
               <div className={styles.panelBody}>{panel.content}</div>
               {!isMobile && (

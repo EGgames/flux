@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import type { Playlist, Profile, PlayoutStatus } from '../../types/ipc.types'
 import { usePlaylists } from '../../hooks/usePlaylists'
 import { usePrograms } from '../../hooks/usePrograms'
@@ -54,8 +54,15 @@ export default function PlaylistsPage({ activeProfile, playout }: Props) {
   const [dropActive, setDropActive] = useState(false)
   const [dropFeedback, setDropFeedback] = useState<string | null>(null)
   const { layout, saveLayout, workspaceHeight, saveWorkspaceHeight } = useWorkspaceLayout(activeProfile, 'playlists-workspace', layoutProgramId || '__default')
+  const activeTrackRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => { setSelected(null) }, [profileId])
+
+  // Auto-scroll a la pista activa cuando cambia queueIndex
+  useEffect(() => {
+    if (playout.status.state === 'stopped') return
+    activeTrackRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [playout.status.queueIndex, playout.status.state])
 
   const handleCreate = async () => {
     if (!newName.trim()) return
@@ -194,18 +201,20 @@ export default function PlaylistsPage({ activeProfile, playout }: Props) {
               {selected.items?.map((item, idx) => {
                 let tags: string[] = []
                 try { tags = JSON.parse(item.audioAsset.tags) } catch { tags = [] }
-                const isCurrentTrack =
+                const isPlayingThisPlaylist =
                   playout.status.state !== 'stopped' &&
-                  playout.status.track?.id === item.audioAsset.id
+                  playout.status.queueLength === (selected.items?.length ?? 0)
+                const isCurrentTrack = isPlayingThisPlaylist && playout.status.queueIndex === idx
                 return (
                   <div
                     key={item.id}
+                    ref={isCurrentTrack ? activeTrackRef : null}
                     className={`${styles.trackItem}${isCurrentTrack ? ` ${styles.trackPlaying}` : ''}`}
                     title="Doble clic para reproducir"
                     onDoubleClick={() => { void handleDoubleClickTrack(idx) }}
                   >
                     <span className={styles.trackPos}>
-                      {isCurrentTrack ? '▶' : item.position}
+                      {isCurrentTrack ? '▶' : `${idx + 1}`}
                     </span>
                     <div className={styles.trackInfo}>
                       <span className={styles.trackName}>{item.audioAsset.name}</span>
@@ -263,7 +272,8 @@ export default function PlaylistsPage({ activeProfile, playout }: Props) {
     newName,
     playlists,
     playout.status.state,
-    playout.status.track,
+    playout.status.queueIndex,
+    playout.status.queueLength,
     remove,
     selected
   ])

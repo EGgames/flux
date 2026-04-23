@@ -110,6 +110,78 @@
   border-color: var(--color-active);
 }
 
+.toolbarBtnAccent {
+  border-color: var(--color-active);
+  color: var(--color-active);
+}
+
+.toolbarBtnAccent:hover {
+  background: rgba(233, 69, 96, 0.12);
+}
+
+.addPanelWrap {
+  position: relative;
+}
+
+.addPanelMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  min-width: 160px;
+  z-index: 999;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.addPanelItem {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.addPanelItem:hover {
+  background: var(--color-panel-alt);
+}
+
+.panelHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panelCloseBtn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background var(--transition), color var(--transition);
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.panelCloseBtn:hover {
+  background: rgba(233, 69, 96, 0.18);
+  color: var(--color-active);
+}
+
 .workspace.mobile {
   min-height: auto;
   border-style: solid;

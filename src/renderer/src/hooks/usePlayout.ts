@@ -93,60 +93,85 @@ export function usePlayout() {
   const [adBreakName, setAdBreakName] = useState<string | null>(null)
   const [currentSec, setCurrentSec] = useState(0)
   const [durationSec, setDurationSec] = useState(0)
+  const [queue, setQueue] = useState<Array<{ id: string; name: string; durationMs: number | null }>>([])  
+  const [volume, setVolumeState] = useState<number>(1)
   const statusRef = useRef(status)
   useEffect(() => { statusRef.current = status }, [status])
+  const audioServerPortRef = useRef<number | null>(null)
   const howlRef = useRef<Howl | null>(null)
   const monitorHowlRef = useRef<Howl | null>(null)
   const transitionRef = useRef<{ fadeInMs: number; fadeOutMs: number }>({ fadeInMs: 0, fadeOutMs: 0 })
   const sinkDeviceIdRef = useRef<string | null>(null)
   const monitorSinkDeviceIdRef = useRef<string | null>(null)
+  const eqCtxRef = useRef<AudioContext | null>(null)
+  const eqSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const eqNodesRef = useRef<{
     low: BiquadFilterNode
     mid: BiquadFilterNode
     high: BiquadFilterNode
   } | null>(null)
-  const eqAttachedRef = useRef(false)
   const timeRulesRef = useRef<TimeRule[]>([])
   const nextAdTargetRef = useRef<number | null>(null)
   const adBreakStartedAtRef = useRef<number | null>(null)
   const adBreakTotalSecRef = useRef<number | null>(null)
 
-  const setupEqualizerGraph = useCallback(() => {
-    const howlerCtx = (Howler as unknown as { ctx?: AudioContext; masterGain?: GainNode })
-    const audioCtx = howlerCtx?.ctx
-    const masterGain = howlerCtx?.masterGain
-    if (!audioCtx || !masterGain || eqAttachedRef.current) return
+  useEffect(() => {
+    window.electronAPI.audio.getServerPort().then((port) => {
+      audioServerPortRef.current = port
+    }).catch(() => {})
+  }, [])
 
-    const low = audioCtx.createBiquadFilter()
+  // Ensure the filter chain exists (called lazily on first play)
+  const ensureEqChain = useCallback(() => {
+    if (!eqCtxRef.current) {
+      eqCtxRef.current = new AudioContext()
+    }
+    const ctx = eqCtxRef.current
+    if (eqNodesRef.current) return
+
+    const low = ctx.createBiquadFilter()
     low.type = 'lowshelf'
     low.frequency.value = 120
 
-    const mid = audioCtx.createBiquadFilter()
+    const mid = ctx.createBiquadFilter()
     mid.type = 'peaking'
     mid.frequency.value = 1000
     mid.Q.value = 1
 
-    const high = audioCtx.createBiquadFilter()
+    const high = ctx.createBiquadFilter()
     high.type = 'highshelf'
     high.frequency.value = 4500
 
-    try {
-      masterGain.disconnect()
-    } catch {
-      // no-op
-    }
-    masterGain.connect(low)
     low.connect(mid)
     mid.connect(high)
-    high.connect(audioCtx.destination)
-
+    high.connect(ctx.destination)
     eqNodesRef.current = { low, mid, high }
-    eqAttachedRef.current = true
   }, [])
 
-  useEffect(() => {
-    setupEqualizerGraph()
-  }, [setupEqualizerGraph])
+  // Connect a Howl's <audio> element through the EQ filter chain
+  const connectHowlToEq = useCallback((howl: Howl) => {
+    ensureEqChain()
+    const ctx = eqCtxRef.current
+    const nodes = eqNodesRef.current
+    if (!ctx || !nodes) return
+
+    // Disconnect previous source
+    try { eqSourceRef.current?.disconnect() } catch { /* no-op */ }
+    eqSourceRef.current = null
+
+    const sounds = (howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement }> })._sounds
+    const audioEl = sounds?.[0]?._node as HTMLAudioElement | undefined
+    if (!audioEl) return
+
+    try {
+      const source = ctx.createMediaElementSource(audioEl)
+      source.connect(nodes.low)
+      eqSourceRef.current = source
+      if (ctx.state === 'suspended') void ctx.resume()
+    } catch {
+      // createMediaElementSource may throw if element is already captured
+    }
+  }, [ensureEqChain])
 
   useEffect(() => {
     const nodes = eqNodesRef.current
@@ -261,7 +286,13 @@ export function usePlayout() {
     setDurationSec(0)
     const src =
       track.sourceType === 'local'
-        ? `local-audio://?p=${encodeURIComponent(track.sourcePath)}`
+        ? (() => {
+            const port = audioServerPortRef.current
+            const ext = track.sourcePath.split('.').pop()?.toLowerCase() ?? 'mp3'
+            return port
+              ? `http://127.0.0.1:${port}/audio.${ext}?p=${encodeURIComponent(track.sourcePath)}`
+              : `local-audio://localhost?p=${encodeURIComponent(track.sourcePath)}`
+          })()
         : track.sourcePath
 
     const howl = new Howl({
@@ -269,16 +300,26 @@ export function usePlayout() {
       html5: true,
       volume: fadeInMs > 0 ? 0 : 1,
       onload: () => {
-        setDurationSec(Math.floor(howl.duration()))
+        const dur = howl.duration()
+        if (typeof dur === 'number' && dur > 0 && isFinite(dur)) {
+          setDurationSec(Math.floor(dur))
+        }
       },
       onplay: () => {
         void applySinkToHowl(howl)
+        connectHowlToEq(howl)
+        // Re-read duration on play in case onload fired before metadata was ready
+        const dur = howl.duration()
+        if (typeof dur === 'number' && dur > 0 && isFinite(dur)) {
+          setDurationSec(Math.floor(dur))
+        }
       },
       onend: () => {
         setCurrentSec(0)
         window.electronAPI.playout.next()
       },
       onloaderror: (_id: number, err: unknown) => {
+        console.error('[usePlayout] onloaderror', track.name, src, err)
         setError(`No se pudo cargar: ${track.name} — ${String(err)}`)
         window.electronAPI.playout.next()
       }
@@ -302,26 +343,91 @@ export function usePlayout() {
     } else {
       monitorHowlRef.current = null
     }
-  }, [applySinkToHowl, applyMonitorSinkToHowl])
+  }, [applySinkToHowl, applyMonitorSinkToHowl, connectHowlToEq])
 
   useEffect(() => {
     // Listen for state changes from Main Process
     const onStateChanged = (data: { state: PlayoutStatus['state'] }) => {
       setStatus((prev) => ({ ...prev, state: data.state }))
     }
-    const onTrackChanged = (data: { track: AudioAsset }) => {
-      setStatus((prev) => ({ ...prev, track: data.track }))
+    const onTrackChanged = (data: { track: AudioAsset; queueIndex?: number; queueLength?: number }) => {
+      setStatus((prev) => ({
+        ...prev,
+        track: data.track,
+        ...(data.queueIndex !== undefined ? { queueIndex: data.queueIndex } : {}),
+        ...(data.queueLength !== undefined ? { queueLength: data.queueLength } : {})
+      }))
       playTrack(data.track, transitionRef.current.fadeInMs)
       transitionRef.current = { fadeInMs: 0, fadeOutMs: 0 }
     }
-    const onAdStart = (data: { block: { id: string; name: string; items?: Array<{ audioAsset?: { durationMs: number | null } }> } }) => {
+    const onAdStart = async (rawData: unknown) => {
+      const data = rawData as {
+        block: { id: string; name: string; items?: Array<{ audioAsset?: AudioAsset | null }> }
+      }
       setStatus((prev) => ({ ...prev, state: 'ad_break' }))
       setAdBreakName(data.block.name)
       adBreakStartedAtRef.current = Date.now()
-      const totalMs = (data.block.items ?? []).reduce((sum, item) => sum + (item.audioAsset?.durationMs ?? 0), 0)
+      const items = data.block.items ?? []
+      const totalMs = items.reduce((sum, item) => sum + (item.audioAsset?.durationMs ?? 0), 0)
       adBreakTotalSecRef.current = totalMs > 0 ? Math.floor(totalMs / 1000) : null
       setAdBreakElapsedSec(0)
       setAdBreakRemainingSec(adBreakTotalSecRef.current)
+
+      // Fade out and stop current music
+      const currentHowl = howlRef.current
+      if (currentHowl?.playing()) {
+        currentHowl.fade(currentHowl.volume(), 0, 600)
+        await new Promise<void>((res) => window.setTimeout(res, 650))
+        currentHowl.stop()
+      }
+      howlRef.current?.unload()
+      howlRef.current = null
+      monitorHowlRef.current?.unload()
+      monitorHowlRef.current = null
+
+      // Play each ad audio asset in sequence
+      const assets = items
+        .map((i) => i.audioAsset)
+        .filter((a): a is AudioAsset => Boolean(a))
+
+      const port = audioServerPortRef.current
+      for (const asset of assets) {
+        await new Promise<void>((resolve) => {
+          const ext = asset.sourcePath.split('.').pop()?.toLowerCase() ?? 'mp3'
+          const src =
+            asset.sourceType === 'local' && port
+              ? `http://127.0.0.1:${port}/audio.${ext}?p=${encodeURIComponent(asset.sourcePath)}`
+              : asset.sourcePath
+
+          const adHowl = new Howl({
+            src: [src],
+            html5: true,
+            onplay: () => {
+              void applySinkToHowl(adHowl)
+              connectHowlToEq(adHowl)
+            },
+            onend: () => resolve(),
+            onstop: () => resolve(),
+            onloaderror: () => {
+              console.error('[usePlayout] Ad track load error:', asset.name)
+              resolve()
+            }
+          })
+          adHowl.play()
+          howlRef.current = adHowl
+        })
+      }
+
+      // Clean up ad break refs before notifying main
+      adBreakStartedAtRef.current = null
+      adBreakTotalSecRef.current = null
+
+      // Signal main process that ad break is done
+      try {
+        await window.electronAPI.playout.adEndAck()
+      } catch {
+        // ignore
+      }
     }
 
     const onProgramChanged = async (data: {
@@ -348,18 +454,35 @@ export function usePlayout() {
       await playoutService.syncProgram(data.program.profileId, data.program.playlistId ?? null)
     }
 
+    const onQueueUpdate = (data: { queue: Array<{ id: string; name: string; durationMs: number | null }>; queueIndex: number }) => {
+      setQueue(data.queue)
+      setStatus((prev) => ({ ...prev, queueIndex: data.queueIndex }))
+    }
+
+    const onAdEnd = () => {
+      setAdBreakName(null)
+      adBreakStartedAtRef.current = null
+      adBreakTotalSecRef.current = null
+      setAdBreakElapsedSec(0)
+      setAdBreakRemainingSec(null)
+    }
+
     window.electronAPI.on('playout:state-changed', onStateChanged as (...args: unknown[]) => void)
     window.electronAPI.on('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
     window.electronAPI.on('playout:ad-start', onAdStart as (...args: unknown[]) => void)
+    window.electronAPI.on('playout:ad-end', onAdEnd as (...args: unknown[]) => void)
     window.electronAPI.on('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
+    window.electronAPI.on('playout:queue-update', onQueueUpdate as (...args: unknown[]) => void)
 
     return () => {
       window.electronAPI.off('playout:state-changed', onStateChanged as (...args: unknown[]) => void)
       window.electronAPI.off('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
       window.electronAPI.off('playout:ad-start', onAdStart as (...args: unknown[]) => void)
+      window.electronAPI.off('playout:ad-end', onAdEnd as (...args: unknown[]) => void)
       window.electronAPI.off('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
+      window.electronAPI.off('playout:queue-update', onQueueUpdate as (...args: unknown[]) => void)
     }
-  }, [playTrack])
+  }, [playTrack, applySinkToHowl, connectHowlToEq])
 
   useEffect(() => {
     if (!status.profileId) return
@@ -437,6 +560,12 @@ export function usePlayout() {
     playoutService.resume()
   }, [])
 
+  const prev = useCallback(() => {
+    howlRef.current?.stop()
+    monitorHowlRef.current?.stop()
+    playoutService.prev()
+  }, [])
+
   const next = useCallback(() => {
     howlRef.current?.stop()
     monitorHowlRef.current?.stop()
@@ -467,17 +596,25 @@ export function usePlayout() {
     setEqualizer((prev) => ({ ...prev, enabled }))
   }, [])
 
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v))
+    Howler.volume(clamped)
+    setVolumeState(clamped)
+  }, [])
+
   const resetEqualizer = useCallback(() => {
     setEqualizer({ enabled: true, low: 0, mid: 0, high: 0 })
   }, [])
 
   return {
     status,
+    queue,
     error,
     start,
     stop,
     pause,
     resume,
+    prev,
     next,
     jumpTo,
     seek,
@@ -496,6 +633,8 @@ export function usePlayout() {
     equalizer,
     setEqualizerBand,
     toggleEqualizer,
-    resetEqualizer
+    resetEqualizer,
+    volume,
+    setVolume
   }
 }

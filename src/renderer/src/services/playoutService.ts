@@ -6,6 +6,7 @@ export const playoutService = {
   stop: () => window.electronAPI.playout.stop(),
   pause: () => window.electronAPI.playout.pause(),
   resume: () => window.electronAPI.playout.resume(),
+  prev: () => window.electronAPI.playout.prev(),
   next: () => window.electronAPI.playout.next(),
   jumpTo: (index: number) => window.electronAPI.playout.jumpTo(index),
   getStatus: () => window.electronAPI.playout.getStatus(),

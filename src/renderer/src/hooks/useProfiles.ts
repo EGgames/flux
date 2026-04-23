@@ -45,5 +45,12 @@ export function useProfiles() {
     }
   }, [activeProfile])
 
-  return { profiles, activeProfile, loading, error, create, select, remove, reload: load }
+  const update = useCallback(async (id: string, data: { name?: string; preferences?: string }) => {
+    const updated = await profileService.update(id, data)
+    setProfiles((prev) => prev.map((p) => (p.id === id ? updated : p)))
+    if (activeProfile?.id === id) setActiveProfile(updated)
+    return updated
+  }, [activeProfile])
+
+  return { profiles, activeProfile, loading, error, create, select, remove, update, reload: load }
 }

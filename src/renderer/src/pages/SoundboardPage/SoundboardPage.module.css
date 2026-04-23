@@ -1,2 +1,28 @@
 .page { display: flex; flex-direction: column; gap: 20px; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .title { font-size: 20px; font-weight: 700; }
+.controls { display: flex; gap: 8px; }
+
+.btnSecondary {
+  padding: 6px 14px;
+  border-radius: var(--radius, 6px);
+  border: 1px solid var(--color-border, #444);
+  background: transparent;
+  color: var(--color-text, #fff);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+.btnSecondary:hover { background: var(--color-panel-alt, #2a2a2a); }
+
+.btnPrimary {
+  padding: 6px 14px;
+  border-radius: var(--radius, 6px);
+  border: none;
+  background: var(--color-accent, #3a7bd5);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: opacity 0.15s;
+}
+.btnPrimary:hover { opacity: 0.85; }

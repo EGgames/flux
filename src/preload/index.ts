@@ -126,11 +126,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stop: () => ipcRenderer.invoke('playout:stop'),
     pause: () => ipcRenderer.invoke('playout:pause'),
     resume: () => ipcRenderer.invoke('playout:resume'),
+    prev: () => ipcRenderer.invoke('playout:prev'),
     next: () => ipcRenderer.invoke('playout:next'),
     jumpTo: (index: number) => ipcRenderer.invoke('playout:jump-to', index),
     getStatus: () => ipcRenderer.invoke('playout:status'),
     triggerAdBlock: (adBlockId: string) => ipcRenderer.invoke('playout:trigger-ad', adBlockId),
+    adEndAck: () => ipcRenderer.invoke('playout:ad-end-ack'),
     streamChunk: (chunk: ArrayBuffer) => ipcRenderer.invoke('playout:stream-chunk', chunk)
+  },
+
+  // ── Audio HTTP server port ────────────────────────────────────
+  audio: {
+    getServerPort: () => ipcRenderer.invoke('audio:server-port')
+  },
+
+  // ── Window Controls ───────────────────────────────────────────
+  windowControls: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close'),
+    isMaximized: () => ipcRenderer.invoke('window:is-maximized') as Promise<boolean>
   },
 
   // ── Events from Main to Renderer ───────────────────────────
@@ -141,6 +156,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'playout:ad-start',
       'playout:ad-end',
       'playout:error',
+      'playout:queue-update',
       'scheduler:program-changed',
       'streaming:status-changed'
     ]

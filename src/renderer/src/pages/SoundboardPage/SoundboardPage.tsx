@@ -6,7 +6,7 @@ import styles from './SoundboardPage.module.css'
 interface Props { profileId: string | null }
 
 export default function SoundboardPage({ profileId }: Props) {
-  const { buttons, assign, trigger } = useSoundboard(profileId)
+  const { buttons, assign, trigger, stopAll, pauseAll, resumeAll, isPaused, gridResetKey } = useSoundboard(profileId)
   const [assignSlot, setAssignSlot] = useState<number | null>(null)
 
   const handleAssign = async (slotIndex: number) => {
@@ -20,8 +20,25 @@ export default function SoundboardPage({ profileId }: Props) {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Soundboard</h1>
+      <div className={styles.header}>
+        <h1 className={styles.title}>Soundboard</h1>
+        <div className={styles.controls}>
+          <button className={styles.btnSecondary} onClick={stopAll} title="Detener todo">
+            ⏹ Stop
+          </button>
+          {isPaused ? (
+            <button className={styles.btnPrimary} onClick={resumeAll} title="Reanudar todo">
+              ▶ Reanudar
+            </button>
+          ) : (
+            <button className={styles.btnSecondary} onClick={pauseAll} title="Pausar todo">
+              ⏸ Pausar
+            </button>
+          )}
+        </div>
+      </div>
       <SoundboardGrid
+        key={gridResetKey}
         buttons={buttons}
         onTrigger={trigger}
         onAssign={handleAssign}

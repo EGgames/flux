@@ -58,8 +58,18 @@ export function registerPlayoutIpc(
     return { success: true }
   })
 
+  ipcMain.handle('playout:prev', () => {
+    playoutService?.prev()
+    return { success: true }
+  })
+
   ipcMain.handle('playout:jump-to', (_event, index: number) => {
     playoutService?.jumpTo(index)
+    return { success: true }
+  })
+
+  ipcMain.handle('playout:ad-end-ack', () => {
+    playoutService?.adBreakEnd()
     return { success: true }
   })
 

@@ -177,11 +177,21 @@ export interface ElectronAPI {
     stop: () => Promise<{ success: boolean }>
     pause: () => Promise<{ success: boolean }>
     resume: () => Promise<{ success: boolean }>
+    prev: () => Promise<{ success: boolean }>
     next: () => Promise<{ success: boolean }>
     jumpTo: (index: number) => Promise<{ success: boolean }>
     getStatus: () => Promise<PlayoutStatus>
     triggerAdBlock: (adBlockId: string) => Promise<{ success: boolean }>
     streamChunk: (chunk: ArrayBuffer) => Promise<void>
+  }
+  audio: {
+    getServerPort: () => Promise<number | null>
+  }
+  windowControls: {
+    minimize: () => Promise<void>
+    maximize: () => Promise<void>
+    close: () => Promise<void>
+    isMaximized: () => Promise<boolean>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => void
   off: (channel: string, callback: (...args: unknown[]) => void) => void

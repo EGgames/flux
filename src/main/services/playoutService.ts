@@ -23,6 +23,7 @@ interface PlayoutStatus {
 
 export class PlayoutService {
   private state: PlayoutState = 'stopped'
+  private prevAdState: PlayoutState = 'stopped'
   private profileId: string | null = null
   private queue: Array<{
     id: string
@@ -140,6 +141,14 @@ export class PlayoutService {
     this.emitTrackChange()
   }
 
+  prev(): void {
+    if (this.queue.length === 0) return
+    const prevIndex = this.queueIndex - 1
+    if (prevIndex < 0) return
+    this.queueIndex = prevIndex
+    this.emitTrackChange()
+  }
+
   async next(): Promise<void> {
     if (this.queue.length === 0) return
     const nextIndex = this.queueIndex + 1
@@ -188,7 +197,7 @@ export class PlayoutService {
     })
     if (!block) throw new Error('Tanda no encontrada')
 
-    const prevState = this.state
+    this.prevAdState = this.state
     this.state = 'ad_break'
     this.win.webContents.send('playout:ad-start', { block })
     this.emitStateChange()
@@ -200,16 +209,17 @@ export class PlayoutService {
         payload: JSON.stringify({ adBlockId, name: block.name })
       }
     })
+  }
 
-    // Renderer handles the actual playback; we restore state after ad_end signal
-    this.win.webContents.once('ipc-message', (_e, channel) => {
-      if (channel === 'playout:ad-end-ack') {
-        this.state = prevState
-        this.songsSinceLastAd = 0
-        this.emitStateChange()
-        this.win.webContents.send('playout:ad-end', {})
-      }
-    })
+  adBreakEnd(): void {
+    const nextState: PlayoutState = this.prevAdState === 'stopped' ? 'stopped' : 'playing'
+    this.state = nextState
+    this.songsSinceLastAd = 0
+    this.emitStateChange()
+    this.win.webContents.send('playout:ad-end', {})
+    if (nextState === 'playing') {
+      this.emitTrackChange()
+    }
   }
 
   getStatus(): PlayoutStatus {
@@ -299,7 +309,15 @@ export class PlayoutService {
   private emitTrackChange(): void {
     const track = this.queue[this.queueIndex] ?? null
     if (track) {
-      this.win.webContents.send('playout:track-changed', { track })
+      this.win.webContents.send('playout:track-changed', {
+        track,
+        queueIndex: this.queueIndex,
+        queueLength: this.queue.length
+      })
+      this.win.webContents.send('playout:queue-update', {
+        queue: this.queue,
+        queueIndex: this.queueIndex
+      })
     }
   }
 }
