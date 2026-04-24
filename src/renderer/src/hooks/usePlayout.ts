@@ -245,6 +245,12 @@ export function usePlayout() {
   const eqSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const eqCapturedNodeRef = useRef<HTMLAudioElement | null>(null)
   const eqNodesRef = useRef<BiquadFilterNode[] | null>(null)
+  // VU meter estéreo: tap desde el último nodo del EQ → splitter → analyserL / analyserR.
+  // Estos nodos NO se conectan a destination (no afectan la salida) y solo leen samples.
+  const vuSplitterRef = useRef<ChannelSplitterNode | null>(null)
+  const vuAnalyserLRef = useRef<AnalyserNode | null>(null)
+  const vuAnalyserRRef = useRef<AnalyserNode | null>(null)
+  const [vuLevels, setVuLevels] = useState<{ l: number; r: number }>({ l: -Infinity, r: -Infinity })
   // Cada HTMLMediaElement solo puede tener UN MediaElementSourceNode en toda su vida.
   // Howler reusa elementos del html5 pool, asi que cacheamos los sources ya creados.
   const eqSourceCacheRef = useRef<WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>>(new WeakMap())
@@ -302,6 +308,26 @@ export function usePlayout() {
     for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1])
     nodes[nodes.length - 1].connect(ctx.destination)
     eqNodesRef.current = nodes
+
+    // VU meter: branch desde el último nodo del EQ a un splitter estéreo.
+    // Las analyser nodes NO se conectan a destination → no alteran la señal audible.
+    try {
+      const splitter = ctx.createChannelSplitter(2)
+      const analyserL = ctx.createAnalyser()
+      const analyserR = ctx.createAnalyser()
+      analyserL.fftSize = 1024
+      analyserR.fftSize = 1024
+      analyserL.smoothingTimeConstant = 0.4
+      analyserR.smoothingTimeConstant = 0.4
+      nodes[nodes.length - 1].connect(splitter)
+      splitter.connect(analyserL, 0)
+      splitter.connect(analyserR, 1)
+      vuSplitterRef.current = splitter
+      vuAnalyserLRef.current = analyserL
+      vuAnalyserRRef.current = analyserR
+    } catch {
+      // entorno sin soporte (jsdom): no romper.
+    }
   }, [])
 
   // Keep the EQ AudioContext routed to the current sink device when it changes
@@ -1206,6 +1232,49 @@ export function usePlayout() {
     })
   }, [status.profileId, equalizer, customPresets])
 
+  // VU meter loop: lee samples de los analyser nodes y calcula peak en dBFS.
+  // 30fps es suficiente para una UI fluida sin saturar el main thread.
+  useEffect(() => {
+    let rafId: number | null = null
+    let lastTs = 0
+    const intervalMs = 1000 / 30
+
+    const computeDbfsPeak = (analyser: AnalyserNode): number => {
+      const buf = new Float32Array(analyser.fftSize)
+      analyser.getFloatTimeDomainData(buf)
+      let peak = 0
+      for (let i = 0; i < buf.length; i++) {
+        const v = Math.abs(buf[i])
+        if (v > peak) peak = v
+      }
+      if (peak <= 0) return -Infinity
+      return 20 * Math.log10(peak)
+    }
+
+    const tick = (ts: number) => {
+      if (ts - lastTs >= intervalMs) {
+        lastTs = ts
+        const aL = vuAnalyserLRef.current
+        const aR = vuAnalyserRRef.current
+        if (aL && aR) {
+          const l = computeDbfsPeak(aL)
+          const r = computeDbfsPeak(aR)
+          setVuLevels((prev) => (prev.l === l && prev.r === r ? prev : { l, r }))
+        }
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+
+    if (typeof requestAnimationFrame === 'function') {
+      rafId = requestAnimationFrame(tick)
+    }
+    return () => {
+      if (rafId !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(rafId)
+      }
+    }
+  }, [])
+
   return {
     status,
     queue,
@@ -1247,6 +1316,7 @@ export function usePlayout() {
     logs,
     clearLogs,
     audioEffects,
-    updateAudioEffects
+    updateAudioEffects,
+    vuLevels
   }
 }

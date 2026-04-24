@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AudioEffectsConfig, Profile } from '../../types/ipc.types'
 import type { PlayoutLogEntry, EqualizerPreset } from '../../hooks/usePlayout'
 import MixerDJ from '../../components/MixerDJ/MixerDJ'
+import VUMeter from '../../components/VUMeter/VUMeter'
 import { usePlaylists } from '../../hooks/usePlaylists'
 import { usePrograms } from '../../hooks/usePrograms'
 import { useSoundboard } from '../../hooks/useSoundboard'
@@ -65,6 +66,7 @@ interface Props {
     clearLogs: () => void
     audioEffects?: AudioEffectsConfig | null
     updateAudioEffects?: (payload: { crossfadeEnabled?: boolean; crossfadeMs?: number; crossfadeCurve?: 'equal-power' | 'linear' }) => Promise<AudioEffectsConfig | null>
+    vuLevels?: { l: number; r: number }
   }
 }
 
@@ -572,6 +574,14 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
       minH: 280,
       defaultRect: { x: 12, y: 1280, w: 720, h: 320 },
       content: <MixerDJ profileId={activeProfile?.id ?? null} />
+    },
+    {
+      id: 'vuMeter',
+      title: 'Niveles (VU)',
+      minW: 160,
+      minH: 220,
+      defaultRect: { x: 1392, y: 12, w: 220, h: 360 },
+      content: <VUMeter left={playout.vuLevels?.l ?? -Infinity} right={playout.vuLevels?.r ?? -Infinity} />
     }
   ], [
     activeProfile,
@@ -623,7 +633,8 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     saveGeneralPlaylist,
     playout.logs,
     playout.clearLogs,
-    playout.audioEffects
+    playout.audioEffects,
+    playout.vuLevels
   ])
 
   return (
