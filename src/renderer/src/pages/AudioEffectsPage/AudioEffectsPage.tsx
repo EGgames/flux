@@ -15,7 +15,7 @@ export default function AudioEffectsPage({ activeProfile }: Props) {
 
   if (!activeProfile) {
     return (
-      <div className={styles.empty}>
+      <div className={styles.empty} data-testid="audio-effects-page">
         <h2>Efectos de Audio</h2>
         <p>Seleccioná un Perfil para configurar los efectos.</p>
       </div>
@@ -23,7 +23,7 @@ export default function AudioEffectsPage({ activeProfile }: Props) {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-testid="audio-effects-page">
       <header className={styles.header}>
         <h1>🎚 Efectos de Audio</h1>
         <p className={styles.subtitle}>
