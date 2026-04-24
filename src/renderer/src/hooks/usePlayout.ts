@@ -200,6 +200,14 @@ export function usePlayout() {
   const [logs, setLogs] = useState<PlayoutLogEntry[]>([])
   const appendLog = useCallback((level: PlayoutLogEntry['level'], message: string) => {
     setLogs((prev) => {
+      // Dedupe: ignora la entrada si la ultima tiene mismo nivel+mensaje dentro
+      // de los ultimos 1000ms. Evita duplicados por StrictMode (doble mount),
+      // por re-emisiones del backend (state-changed disparado dos veces) y por
+      // onplay de Howler que puede ejecutarse varias veces para el mismo track.
+      const last = prev[prev.length - 1]
+      if (last && last.level === level && last.message === message && Date.now() - last.timestamp < 1000) {
+        return prev
+      }
       const entry: PlayoutLogEntry = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
