@@ -182,6 +182,22 @@ Gestión del enrutado de audio hacia tarjetas físicas configurada en `Integrati
 
 Múltiples perfiles independientes. Cada uno tiene su propia biblioteca, layout, EQ y configuración de outputs/streaming.
 
+### Efectos de Audio (Crossfade + Fades por tema + Mixer DJ)
+
+Página dedicada (`/efectos` en el sidebar) con tres pestañas:
+
+| Pestaña | Detalle |
+|---|---|
+| **Global** | Activa/desactiva el crossfade automático entre temas. Duración configurable 0.5–15 s. Curva: `equal-power` (recomendada, mantiene volumen percibido constante) o `linear`. Persistencia por perfil en `AudioEffectsConfig`. |
+| **Por tema** | Define `fadeInMs` y `fadeOutMs` propios por `AudioAsset`. Rango 0–15 000 ms (valores no positivos = `null`). |
+| **Mixer DJ** | Dos decks (A/B) + crossfader equal-power. Cada deck con play/pause, volumen y CUE para enrutar al device de Monitor configurado en Integraciones. Reusable como panel del workspace de Playout. |
+
+**Regla de prioridad (RN-03):** el fade efectivo aplicado al cambiar de tema es `max(crossfade global, fadeInMs/fadeOutMs del asset)`. Si el global está OFF, mandan los fades por tema; si no hay fades por tema, manda el global.
+
+Hooks/servicios: `useMixer` (`src/renderer/src/hooks/useMixer.ts`), `audioEffectsService` (`src/renderer/src/services/audioEffectsService.ts`). IPC: `audio-effects:get`, `audio-effects:update`, `audio-assets:update-fades`.
+
+Spec: [.github/specs/efectos-de-audio.spec.md](.github/specs/efectos-de-audio.spec.md) (status `IMPLEMENTED`).
+
 ---
 
 ## Testing

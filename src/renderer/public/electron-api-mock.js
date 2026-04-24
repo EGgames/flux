@@ -31,7 +31,14 @@
       import:      noop,
       importBatch: function() { return Promise.resolve([]) },
       remove:      noop,
-      pickFiles:   function() { return Promise.resolve([]) }
+      pickFiles:   function() { return Promise.resolve([]) },
+      updateFades: function() { return Promise.resolve({}) }
+    },
+
+    // --- audioEffects ---
+    audioEffects: {
+      get:    function() { return Promise.resolve({ id: 'mock', profileId: 'mock-profile', crossfadeEnabled: false, crossfadeMs: 2000, crossfadeCurve: 'equal-power' }) },
+      update: function() { return Promise.resolve({ id: 'mock', profileId: 'mock-profile', crossfadeEnabled: false, crossfadeMs: 2000, crossfadeCurve: 'equal-power' }) }
     },
 
     // --- playout ---

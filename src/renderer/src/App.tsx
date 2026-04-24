@@ -9,6 +9,7 @@ import AdBreaksPage from './pages/AdBreaksPage/AdBreaksPage'
 import ProgramsPage from './pages/ProgramsPage/ProgramsPage'
 import ProfilesPage from './pages/ProfilesPage/ProfilesPage'
 import IntegrationsPage from './pages/IntegrationsPage/IntegrationsPage'
+import AudioEffectsPage from './pages/AudioEffectsPage/AudioEffectsPage'
 import './styles/globals.css'
 
 export default function App() {
@@ -64,6 +65,10 @@ export default function App() {
         <Route
           path="/integrations"
           element={<IntegrationsPage profileId={profiles.activeProfile?.id ?? null} />}
+        />
+        <Route
+          path="/efectos"
+          element={<AudioEffectsPage activeProfile={profiles.activeProfile} />}
         />
       </Routes>
     </Layout>

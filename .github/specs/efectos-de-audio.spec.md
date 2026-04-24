@@ -1,6 +1,6 @@
 ---
 id: SPEC-004
-status: APPROVED
+status: IMPLEMENTED
 feature: efectos-de-audio
 created: 2026-04-24
 updated: 2026-04-24
@@ -11,7 +11,7 @@ related-specs: [SPEC-002, SPEC-003]
 
 # Spec: Efectos de Audio (Crossfade + Per-Track Fades + Mixer DJ)
 
-> **Estado:** `APPROVED` — aprobada por el usuario. Fade lineal en v1 confirmado, página Efectos vive en el sidebar.
+> **Estado:** `IMPLEMENTED` — entregado en feature-fix. Crossfade global (equal-power/lineal), fades por tema (RN-03) y Mixer DJ con CUE a Monitor. Pruebas: 307/307.
 > **Ciclo de vida:** DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → DEPRECATED
 
 ---

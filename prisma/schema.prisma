@@ -24,6 +24,7 @@ model Profile {
   soundboardButtons SoundboardButton[]
   programs          RadioProgram[]
   outputs           OutputIntegration[]
+  audioEffects      AudioEffectsConfig?
 }
 
 model AudioAsset {
@@ -33,6 +34,8 @@ model AudioAsset {
   sourcePath String
   durationMs Int?
   tags       String   @default("[]")
+  fadeInMs   Int?
+  fadeOutMs  Int?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -157,4 +160,16 @@ model PlayoutEvent {
   payload   String   @default("{}")
   status    String   @default("ok")
   createdAt DateTime @default(now())
+}
+
+model AudioEffectsConfig {
+  id               String   @id @default(cuid())
+  profileId        String   @unique
+  crossfadeEnabled Boolean  @default(false)
+  crossfadeMs      Int      @default(2000)
+  crossfadeCurve   String   @default("equal-power") // 'equal-power' | 'linear'
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 }

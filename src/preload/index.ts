@@ -21,7 +21,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     import: (filePath: string) => ipcRenderer.invoke('audio-asset:import', filePath),
     importBatch: (filePaths: string[]) => ipcRenderer.invoke('audio-asset:import-batch', filePaths),
     remove: (id: string) => ipcRenderer.invoke('audio-asset:delete', id),
-    pickFiles: () => ipcRenderer.invoke('audio-asset:pick-files')
+    pickFiles: () => ipcRenderer.invoke('audio-asset:pick-files'),
+    updateFades: (assetId: string, fadeInMs: number | null, fadeOutMs: number | null) =>
+      ipcRenderer.invoke('audio-assets:update-fades', { assetId, fadeInMs, fadeOutMs })
+  },
+
+  // ── Audio Effects ──────────────────────────────────────────
+  audioEffects: {
+    get: (profileId: string) => ipcRenderer.invoke('audio-effects:get', profileId),
+    update: (payload: {
+      profileId: string
+      crossfadeEnabled?: boolean
+      crossfadeMs?: number
+      crossfadeCurve?: string
+    }) => ipcRenderer.invoke('audio-effects:update', payload)
   },
 
   // ── Playlists ──────────────────────────────────────────────

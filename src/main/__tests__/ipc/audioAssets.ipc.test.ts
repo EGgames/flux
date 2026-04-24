@@ -107,4 +107,55 @@ describe('audioAssets.ipc', () => {
       expect(result).toEqual({ success: true })
     })
   })
+
+  describe('audio-assets:update-fades', () => {
+    it('persiste fades válidos', async () => {
+      db.audioAsset.update.mockResolvedValue({ id: 'a1' })
+      await invokeHandler(handlers, 'audio-assets:update-fades', {
+        assetId: 'a1',
+        fadeInMs: 1000,
+        fadeOutMs: 2500
+      })
+      expect(db.audioAsset.update).toHaveBeenCalledWith({
+        where: { id: 'a1' },
+        data: { fadeInMs: 1000, fadeOutMs: 2500 }
+      })
+    })
+
+    it('clamp >15000 a 15000', async () => {
+      db.audioAsset.update.mockResolvedValue({ id: 'a1' })
+      await invokeHandler(handlers, 'audio-assets:update-fades', {
+        assetId: 'a1',
+        fadeInMs: 99999,
+        fadeOutMs: null
+      })
+      const arg = db.audioAsset.update.mock.calls[0][0]
+      expect(arg.data.fadeInMs).toBe(15000)
+      expect(arg.data.fadeOutMs).toBeNull()
+    })
+
+    it('valores no positivos se guardan como null', async () => {
+      db.audioAsset.update.mockResolvedValue({ id: 'a1' })
+      await invokeHandler(handlers, 'audio-assets:update-fades', {
+        assetId: 'a1',
+        fadeInMs: 0,
+        fadeOutMs: -100
+      })
+      const arg = db.audioAsset.update.mock.calls[0][0]
+      expect(arg.data.fadeInMs).toBeNull()
+      expect(arg.data.fadeOutMs).toBeNull()
+    })
+
+    it('null se preserva como null', async () => {
+      db.audioAsset.update.mockResolvedValue({ id: 'a1' })
+      await invokeHandler(handlers, 'audio-assets:update-fades', {
+        assetId: 'a1',
+        fadeInMs: null,
+        fadeOutMs: null
+      })
+      const arg = db.audioAsset.update.mock.calls[0][0]
+      expect(arg.data.fadeInMs).toBeNull()
+      expect(arg.data.fadeOutMs).toBeNull()
+    })
+  })
 })

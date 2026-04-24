@@ -25,6 +25,7 @@ import { registerSoundboardIpc } from './ipc/soundboard.ipc'
 import { registerProgramIpc } from './ipc/programs.ipc'
 import { registerOutputIpc } from './ipc/outputs.ipc'
 import { registerPlayoutIpc } from './ipc/playout.ipc'
+import { registerAudioEffectsIpc } from './ipc/audioEffects.ipc'
 import { SchedulerService } from './services/schedulerService'
 import { StreamingService } from './services/streamingService'
 import log from 'electron-log'
@@ -223,6 +224,7 @@ async function initializeApp(): Promise<void> {
   registerProgramIpc(db)
   registerOutputIpc(db, streamingService)
   registerPlayoutIpc(db, schedulerService, streamingService, mainWindow!)
+  registerAudioEffectsIpc(db)
 
   ipcMain.handle('audio:server-port', () => audioServerPort)
 

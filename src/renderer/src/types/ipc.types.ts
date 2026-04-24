@@ -16,6 +16,18 @@ export interface AudioAsset {
   sourcePath: string
   durationMs: number | null
   tags: string
+  fadeInMs: number | null
+  fadeOutMs: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AudioEffectsConfig {
+  id: string
+  profileId: string
+  crossfadeEnabled: boolean
+  crossfadeMs: number
+  crossfadeCurve: 'equal-power' | 'linear'
   createdAt: string
   updatedAt: string
 }
@@ -126,6 +138,11 @@ export interface ElectronAPI {
     importBatch: (filePaths: string[]) => Promise<AudioAsset[]>
     remove: (id: string) => Promise<{ success: boolean }>
     pickFiles: () => Promise<string[]>
+    updateFades: (assetId: string, fadeInMs: number | null, fadeOutMs: number | null) => Promise<AudioAsset>
+  }
+  audioEffects: {
+    get: (profileId: string) => Promise<AudioEffectsConfig | null>
+    update: (payload: { profileId: string; crossfadeEnabled?: boolean; crossfadeMs?: number; crossfadeCurve?: string }) => Promise<AudioEffectsConfig>
   }
   playlists: {
     list: (profileId: string) => Promise<Playlist[]>

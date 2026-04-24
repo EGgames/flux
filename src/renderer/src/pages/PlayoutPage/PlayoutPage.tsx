@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Profile } from '../../types/ipc.types'
+import type { AudioEffectsConfig, Profile } from '../../types/ipc.types'
 import type { PlayoutLogEntry, EqualizerPreset } from '../../hooks/usePlayout'
+import MixerDJ from '../../components/MixerDJ/MixerDJ'
 import { usePlaylists } from '../../hooks/usePlaylists'
 import { usePrograms } from '../../hooks/usePrograms'
 import { useSoundboard } from '../../hooks/useSoundboard'
@@ -62,6 +63,8 @@ interface Props {
     pendingAdBlock: { id: string; name: string } | null
     logs: PlayoutLogEntry[]
     clearLogs: () => void
+    audioEffects?: AudioEffectsConfig | null
+    updateAudioEffects?: (payload: { crossfadeEnabled?: boolean; crossfadeMs?: number; crossfadeCurve?: 'equal-power' | 'linear' }) => Promise<AudioEffectsConfig | null>
   }
 }
 
@@ -525,6 +528,50 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
           </div>
         </div>
       )
+    },
+    {
+      id: 'crossfadeStatus',
+      title: 'Crossfade',
+      minW: 240,
+      minH: 120,
+      defaultRect: { x: 1056, y: 1280, w: 320, h: 140 },
+      content: (
+        <div className={styles.transportPanel}>
+          {playout.audioEffects ? (
+            <>
+              <div className={styles.stats}>
+                <div>
+                  <span className={styles.label}>Estado:</span>{' '}
+                  {playout.audioEffects.crossfadeEnabled ? 'ON' : 'OFF'}
+                </div>
+                <div>
+                  <span className={styles.label}>Duración:</span>{' '}
+                  {(playout.audioEffects.crossfadeMs / 1000).toFixed(1)} s
+                </div>
+                <div>
+                  <span className={styles.label}>Curva:</span>{' '}
+                  {playout.audioEffects.crossfadeCurve}
+                </div>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <a href="#/efectos" className={styles.btnSecondary}>Configurar</a>
+              </div>
+            </>
+          ) : (
+            <div className={styles.logsEmpty}>
+              Sin configuración. <a href="#/efectos">Ir a Efectos</a>
+            </div>
+          )}
+        </div>
+      )
+    },
+    {
+      id: 'mixerDJ',
+      title: 'Mixer DJ',
+      minW: 480,
+      minH: 280,
+      defaultRect: { x: 12, y: 1280, w: 720, h: 320 },
+      content: <MixerDJ profileId={activeProfile?.id ?? null} />
     }
   ], [
     activeProfile,
@@ -575,7 +622,8 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     generalPlaylistId,
     saveGeneralPlaylist,
     playout.logs,
-    playout.clearLogs
+    playout.clearLogs,
+    playout.audioEffects
   ])
 
   return (

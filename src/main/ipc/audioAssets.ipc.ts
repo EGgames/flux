@@ -48,4 +48,24 @@ export function registerAudioAssetIpc(db: PrismaClient): void {
     await db.audioAsset.delete({ where: { id } })
     return { success: true }
   })
+
+  ipcMain.handle(
+    'audio-assets:update-fades',
+    async (
+      _event,
+      payload: { assetId: string; fadeInMs: number | null; fadeOutMs: number | null }
+    ) => {
+      const { assetId, fadeInMs, fadeOutMs } = payload
+      const clamp = (v: number | null): number | null => {
+        if (v === null || v === undefined) return null
+        const n = Math.round(Number(v))
+        if (!Number.isFinite(n) || n <= 0) return null
+        return Math.min(15000, Math.max(0, n))
+      }
+      return db.audioAsset.update({
+        where: { id: assetId },
+        data: { fadeInMs: clamp(fadeInMs), fadeOutMs: clamp(fadeOutMs) }
+      })
+    }
+  )
 }

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Howl, Howler } from 'howler'
-import type { PlayoutStatus, AudioAsset, AdRule } from '../types/ipc.types'
+import type { PlayoutStatus, AudioAsset, AdRule, AudioEffectsConfig } from '../types/ipc.types'
 import { playoutService } from '../services/playoutService'
 import { outputService } from '../services/outputService'
+import { audioEffectsService } from '../services/audioEffectsService'
 
 interface LocalOutputConfig {
   deviceId?: string
@@ -572,7 +573,21 @@ export function usePlayout() {
   }, [])
 
   const playTrack = useCallback((track: AudioAsset, fadeInMs = 0) => {
-    howlRef.current?.unload()
+    const previous = howlRef.current
+    const inCrossfade = crossfadeTriggeredRef.current && previous !== null && fadeInMs > 0
+    if (previous) {
+      if (inCrossfade) {
+        // Mantenemos al previous sonando con su fade out ya iniciado en el tick.
+        // Lo descargamos pasado el fadeIn + un pequeño margen.
+        const tail = fadeInMs + 300
+        window.setTimeout(() => {
+          try { previous.stop() } catch { /* no-op */ }
+          try { previous.unload() } catch { /* no-op */ }
+        }, tail)
+      } else {
+        previous.unload()
+      }
+    }
     monitorHowlRef.current?.unload()
     setCurrentSec(0)
     // Prefer the DB-probed duration (accurate for VBR MP3) over Howler's HTML5 estimate,
@@ -615,6 +630,8 @@ export function usePlayout() {
         }
       },
       onend: () => {
+        // Si el crossfade proactivo ya disparo next(), no volvemos a llamarlo desde onend.
+        if (crossfadeTriggeredRef.current) return
         // Snap the bar to 100 % so it visually completes; the next track will reset it.
         setCurrentSec((prev) => Math.max(prev, probedSec))
         window.electronAPI.playout.next()
@@ -658,6 +675,36 @@ export function usePlayout() {
   const adAbortedRef = useRef(false)
   const adCurrentHowlRef = useRef<Howl | null>(null)
 
+  // ===== Audio Effects (crossfade global + per-track fades) =====
+  const audioEffectsConfigRef = useRef<AudioEffectsConfig | null>(null)
+  const [audioEffects, setAudioEffectsState] = useState<AudioEffectsConfig | null>(null)
+  const crossfadeTriggeredRef = useRef(false)
+
+  const loadAudioEffects = useCallback(async (profileId: string) => {
+    try {
+      const cfg = await audioEffectsService.get(profileId)
+      audioEffectsConfigRef.current = cfg
+      setAudioEffectsState(cfg)
+    } catch {
+      audioEffectsConfigRef.current = null
+      setAudioEffectsState(null)
+    }
+  }, [])
+
+  const updateAudioEffects = useCallback(async (payload: {
+    crossfadeEnabled?: boolean
+    crossfadeMs?: number
+    crossfadeCurve?: 'equal-power' | 'linear'
+  }) => {
+    const profileId = statusRef.current.profileId
+    if (!profileId) return null
+    const updated = await audioEffectsService.update({ profileId, ...payload })
+    audioEffectsConfigRef.current = updated
+    setAudioEffectsState(updated)
+    window.dispatchEvent(new CustomEvent('flux:audio-effects-changed', { detail: { profileId } }))
+    return updated
+  }, [])
+
   useEffect(() => {
     const onStateChanged = (data: { state: PlayoutStatus['state'] }) => {
       setStatus((prev) => ({ ...prev, state: data.state }))
@@ -690,7 +737,13 @@ export function usePlayout() {
         return
       }
       appendLog('info', `Audio: ${data.track.name}`)
-      playTrack(data.track, transitionRef.current.fadeInMs)
+      // RN-03: fadeIn = max(globalCrossfade, asset.fadeInMs)
+      const cfg = audioEffectsConfigRef.current
+      const globalMs = cfg?.crossfadeEnabled ? cfg.crossfadeMs : 0
+      const assetFadeIn = data.track.fadeInMs ?? 0
+      const effectiveFadeIn = Math.max(globalMs, assetFadeIn, transitionRef.current.fadeInMs)
+      crossfadeTriggeredRef.current = false
+      playTrack(data.track, effectiveFadeIn)
       transitionRef.current = { fadeInMs: 0, fadeOutMs: 0 }
     }
     const onAdStart = async (rawData: unknown) => {
@@ -891,6 +944,24 @@ export function usePlayout() {
     return () => window.removeEventListener('flux:outputs-changed', handler as EventListener)
   }, [loadLocalOutput, loadMonitorOutput, reapplyOutputs, appendLog])
 
+  // Recarga la configuracion de Efectos de Audio cuando se actualiza desde la pagina /efectos.
+  useEffect(() => {
+    const handler = async (event: Event) => {
+      const detail = (event as CustomEvent<{ profileId?: string }>).detail
+      const pid = detail?.profileId ?? statusRef.current.profileId
+      if (!pid) return
+      await loadAudioEffects(pid)
+      appendLog('info', 'Efectos de audio actualizados')
+    }
+    window.addEventListener('flux:audio-effects-changed', handler as EventListener)
+    return () => window.removeEventListener('flux:audio-effects-changed', handler as EventListener)
+  }, [loadAudioEffects, appendLog])
+
+  useEffect(() => {
+    if (!status.profileId) return
+    void loadAudioEffects(status.profileId)
+  }, [status.profileId, loadAudioEffects])
+
   useEffect(() => {
     const timer = window.setInterval(() => {
       const nowMs = Date.now()
@@ -937,6 +1008,32 @@ export function usePlayout() {
           } else {
             setCurrentSec(Math.floor(audioEl.currentTime))
           }
+
+          // ===== Crossfade proactivo =====
+          // Si crossfade global esta habilitado y el tema se acerca al fin,
+          // disparamos next() ANTES del onend para tener overlap real entre A y B.
+          const cfg = audioEffectsConfigRef.current
+          const globalMs = cfg?.crossfadeEnabled ? cfg.crossfadeMs : 0
+          const trackFadeOutMs = currentStatus.track?.fadeOutMs ?? 0
+          const fadeOutMs = Math.max(globalMs, trackFadeOutMs)
+          if (
+            !crossfadeTriggeredRef.current &&
+            fadeOutMs > 0 &&
+            currentStatus.queueLength > 1 &&
+            audioEl.duration &&
+            isFinite(audioEl.duration) &&
+            audioEl.currentTime >= audioEl.duration - fadeOutMs / 1000 - 0.05 &&
+            audioEl.currentTime > 0
+          ) {
+            crossfadeTriggeredRef.current = true
+            const out = howlRef.current
+            try {
+              out.fade(out.volume(), 0, fadeOutMs)
+            } catch { /* fade may fail in EQ mode */ }
+            // Pasamos hint de fadeIn al siguiente track via transitionRef.
+            transitionRef.current = { fadeInMs: globalMs, fadeOutMs }
+            window.electronAPI.playout.next()
+          }
         }
       }
     }, 1000)
@@ -949,13 +1046,14 @@ export function usePlayout() {
     try {
       await loadLocalOutput(profileId)
       await loadMonitorOutput(profileId)
+      await loadAudioEffects(profileId)
       await loadTimeRules(profileId)
       const st = await playoutService.start(profileId, playlistId, startIndex)
       setStatus(st)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar')
     }
-  }, [loadLocalOutput, loadMonitorOutput, loadTimeRules])
+  }, [loadLocalOutput, loadMonitorOutput, loadAudioEffects, loadTimeRules])
 
   const stop = useCallback(async () => {
     howlRef.current?.unload()
@@ -1147,6 +1245,8 @@ export function usePlayout() {
     volume,
     setVolume,
     logs,
-    clearLogs
+    clearLogs,
+    audioEffects,
+    updateAudioEffects
   }
 }
