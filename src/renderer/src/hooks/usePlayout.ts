@@ -206,6 +206,9 @@ export function usePlayout() {
   const eqSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const eqCapturedNodeRef = useRef<HTMLAudioElement | null>(null)
   const eqNodesRef = useRef<BiquadFilterNode[] | null>(null)
+  // Cada HTMLMediaElement solo puede tener UN MediaElementSourceNode en toda su vida.
+  // Howler reusa elementos del html5 pool, asi que cacheamos los sources ya creados.
+  const eqSourceCacheRef = useRef<WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>>(new WeakMap())
   const timeRulesRef = useRef<TimeRule[]>([])
   const nextAdTargetRef = useRef<number | null>(null)
   const adBreakStartedAtRef = useRef<number | null>(null)
@@ -277,30 +280,52 @@ export function usePlayout() {
 
     const sounds = (howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement }> })._sounds
     const audioEl = sounds?.[0]?._node as HTMLAudioElement | undefined
-    if (!audioEl) return
+    if (!audioEl) {
+      console.warn('[EQ] no audio element found on howl, skipping EQ connect')
+      return
+    }
 
-    // If this exact element is already captured, skip to avoid currentTime reset
-    if (eqCapturedNodeRef.current === audioEl) {
+    // Cross-origin: el audio se sirve desde http://127.0.0.1:<port>/ o local-audio://,
+    // distinto del origin del renderer. Sin crossOrigin el AudioContext no puede leer
+    // los samples y createMediaElementSource captura pero entrega silencio.
+    if (!audioEl.crossOrigin) {
+      try { audioEl.crossOrigin = 'anonymous' } catch { /* no-op */ }
+    }
+
+    // Si este elemento ya esta enchufado al primer nodo del EQ, no hacemos nada.
+    if (eqCapturedNodeRef.current === audioEl && eqSourceRef.current) {
       if (ctx.state === 'suspended') void ctx.resume()
       void updateEqSink()
       return
     }
 
-    // New audio element — disconnect previous source first
+    // Desconectar el source anterior (de otro elemento) del nodo low.
     try { eqSourceRef.current?.disconnect() } catch { /* no-op */ }
     eqSourceRef.current = null
-    eqCapturedNodeRef.current = null
+
+    // Reusar el source si ya capturamos este elemento antes (Howler html5 pool reciclo el <audio>).
+    let source = eqSourceCacheRef.current.get(audioEl) ?? null
+    if (!source) {
+      try {
+        source = ctx.createMediaElementSource(audioEl)
+        eqSourceCacheRef.current.set(audioEl, source)
+      } catch (err) {
+        // InvalidStateError: el elemento ya estaba enchufado a OTRO AudioContext.
+        // No hay forma de recuperarlo, el audio sale por el output default y el EQ no lo afecta.
+        console.error('[EQ] createMediaElementSource fallo, EQ no afectara este track:', err)
+        eqCapturedNodeRef.current = audioEl
+        return
+      }
+    }
 
     try {
-      const source = ctx.createMediaElementSource(audioEl)
       source.connect(nodes[0])
       eqSourceRef.current = source
       eqCapturedNodeRef.current = audioEl
       if (ctx.state === 'suspended') void ctx.resume()
       void updateEqSink()
-    } catch {
-      // Already captured by another context — mark as captured to avoid retrying
-      eqCapturedNodeRef.current = audioEl
+    } catch (err) {
+      console.error('[EQ] error connecting source to filter chain:', err)
     }
   }, [ensureEqChain, updateEqSink])
 
