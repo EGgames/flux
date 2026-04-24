@@ -87,6 +87,11 @@ export default function IntegrationsPage({ profileId }: Props) {
     })
   }, [profileId])
 
+  const notifyOutputsChanged = () => {
+    if (!profileId) return
+    window.dispatchEvent(new CustomEvent('flux:outputs-changed', { detail: { profileId } }))
+  }
+
   const handleSaveLocal = async () => {
     if (!profileId) return
     setSaving(true)
@@ -101,6 +106,7 @@ export default function IntegrationsPage({ profileId }: Props) {
       return [...filtered, saved]
     })
     setSaving(false)
+    notifyOutputsChanged()
   }
 
   const handleSaveIcecast = async () => {
@@ -139,6 +145,7 @@ export default function IntegrationsPage({ profileId }: Props) {
       return [...filtered, saved]
     })
     setSaving(false)
+    notifyOutputsChanged()
   }
 
   const handleTest = async (id: string) => {
@@ -149,6 +156,7 @@ export default function IntegrationsPage({ profileId }: Props) {
   const handleToggle = async (id: string, enabled: boolean) => {
     const updated = await outputService.toggleEnabled(id, enabled)
     setOutputs((prev) => prev.map((o) => (o.id === id ? updated : o)))
+    notifyOutputsChanged()
   }
 
   const getStatus = (output: OutputIntegration | undefined) => {

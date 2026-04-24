@@ -386,9 +386,10 @@ export function usePlayout() {
   }, [equalizer])
 
   const applySinkToHowl = useCallback(async (howl: Howl) => {
-    const targetDeviceId = sinkDeviceIdRef.current
-    if (!targetDeviceId) return
-
+    // Pasar 'default' explicitamente para que el navegador vuelva a la salida del sistema
+    // si el usuario cambio desde un device fisico hacia 'default'. Antes filtrabamos null y
+    // quedaba pegado al ultimo dispositivo aplicado.
+    const targetDeviceId = sinkDeviceIdRef.current ?? 'default'
     try {
       const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
       for (const sound of sounds) {
@@ -402,8 +403,7 @@ export function usePlayout() {
   }, [])
 
   const applyMonitorSinkToHowl = useCallback(async (howl: Howl) => {
-    const targetDeviceId = monitorSinkDeviceIdRef.current
-    if (!targetDeviceId) return
+    const targetDeviceId = monitorSinkDeviceIdRef.current ?? 'default'
     try {
       const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
       for (const sound of sounds) {
@@ -420,15 +420,15 @@ export function usePlayout() {
     const outputs = await outputService.list(profileId)
     const local = outputs.find((out) => out.outputType === 'local' && out.enabled)
     if (!local) {
-      sinkDeviceIdRef.current = null
+      sinkDeviceIdRef.current = 'default'
       return
     }
 
     try {
       const cfg = JSON.parse(local.config) as LocalOutputConfig
-      sinkDeviceIdRef.current = cfg.deviceId && cfg.deviceId !== 'default' ? cfg.deviceId : null
+      sinkDeviceIdRef.current = cfg.deviceId || 'default'
     } catch {
-      sinkDeviceIdRef.current = null
+      sinkDeviceIdRef.current = 'default'
     }
   }, [])
 
@@ -441,11 +441,56 @@ export function usePlayout() {
     }
     try {
       const cfg = JSON.parse(monitorOut.config) as LocalOutputConfig
-      monitorSinkDeviceIdRef.current = cfg.deviceId && cfg.deviceId !== 'default' ? cfg.deviceId : null
+      monitorSinkDeviceIdRef.current = cfg.deviceId || 'default'
     } catch {
       monitorSinkDeviceIdRef.current = null
     }
   }, [])
+
+  // Reaplica las salidas al Howl actualmente en reproduccion sin reiniciar el track.
+  // Se invoca tanto cuando el usuario cambia un device en IntegrationsPage como al togglear
+  // enabled. Tambien crea/destruye el monitorHowl segun corresponda.
+  const reapplyOutputs = useCallback(async () => {
+    const main = howlRef.current
+    if (main) {
+      await applySinkToHowl(main)
+    }
+
+    // Monitor: si hay device y track activo pero no hay monitorHowl => crearlo.
+    // Si no hay device y existe monitorHowl => destruirlo. Si ambos existen => solo reaplicar.
+    const monitorDeviceId = monitorSinkDeviceIdRef.current
+    const currentTrack = statusRef.current.track
+    const isPlayingState = statusRef.current.state === 'playing'
+
+    if (monitorDeviceId && currentTrack && isPlayingState) {
+      if (monitorHowlRef.current) {
+        await applyMonitorSinkToHowl(monitorHowlRef.current)
+      } else {
+        const port = audioServerPortRef.current
+        const ext = currentTrack.sourcePath.split('.').pop()?.toLowerCase() ?? 'mp3'
+        const src =
+          currentTrack.sourceType === 'local'
+            ? (port
+              ? `http://127.0.0.1:${port}/audio.${ext}?p=${encodeURIComponent(currentTrack.sourcePath)}`
+              : `local-audio://localhost?p=${encodeURIComponent(currentTrack.sourcePath)}`)
+            : currentTrack.sourcePath
+        const monitorHowl = new Howl({
+          src: [src],
+          html5: true,
+          volume: 1,
+          onplay: () => { void applyMonitorSinkToHowl(monitorHowl) }
+        })
+        monitorHowl.play()
+        monitorHowlRef.current = monitorHowl
+        appendLog('info', 'Monitor activado')
+      }
+    } else if (!monitorDeviceId && monitorHowlRef.current) {
+      monitorHowlRef.current.stop()
+      monitorHowlRef.current.unload()
+      monitorHowlRef.current = null
+      appendLog('info', 'Monitor desactivado')
+    }
+  }, [applySinkToHowl, applyMonitorSinkToHowl, appendLog])
 
   const loadTimeRules = useCallback(async (profileId: string) => {
     const listFn = (window.electronAPI as unknown as { adRules?: { list?: (id: string) => Promise<AdRule[]> } }).adRules?.list
@@ -549,8 +594,8 @@ export function usePlayout() {
     }
     howlRef.current = howl
 
-    // Monitor: reproduce el mismo audio en el dispositivo de monitoreo
-    if (monitorSinkDeviceIdRef.current) {
+    // Monitor: reproduce el mismo audio en el dispositivo de monitoreo (solo si hay device asignado)
+    if (monitorSinkDeviceIdRef.current && monitorSinkDeviceIdRef.current !== null) {
       const monitorHowl = new Howl({
         src: [src],
         html5: true,
@@ -754,6 +799,24 @@ export function usePlayout() {
     if (!status.profileId) return
     void loadTimeRules(status.profileId)
   }, [loadTimeRules, status.profileId])
+
+  // Reaplica salidas cuando el usuario edita devices/monitor en IntegrationsPage.
+  // IntegrationsPage emite window.dispatchEvent(new CustomEvent('flux:outputs-changed',
+  // { detail: { profileId } })) tras cada save/toggle. Recargamos los refs y reaplicamos
+  // sinkId al howl actual sin reiniciar el track.
+  useEffect(() => {
+    const handler = async (event: Event) => {
+      const detail = (event as CustomEvent<{ profileId?: string }>).detail
+      const pid = detail?.profileId ?? statusRef.current.profileId
+      if (!pid) return
+      await loadLocalOutput(pid)
+      await loadMonitorOutput(pid)
+      await reapplyOutputs()
+      appendLog('info', 'Salidas de audio actualizadas')
+    }
+    window.addEventListener('flux:outputs-changed', handler as EventListener)
+    return () => window.removeEventListener('flux:outputs-changed', handler as EventListener)
+  }, [loadLocalOutput, loadMonitorOutput, reapplyOutputs, appendLog])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
