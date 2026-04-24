@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Profile } from '../../types/ipc.types'
-import type { PlayoutLogEntry } from '../../hooks/usePlayout'
+import type { PlayoutLogEntry, EqualizerPreset } from '../../hooks/usePlayout'
 import { usePlaylists } from '../../hooks/usePlaylists'
 import { usePrograms } from '../../hooks/usePrograms'
 import { useSoundboard } from '../../hooks/useSoundboard'
@@ -48,13 +48,17 @@ interface Props {
     }
     equalizer: {
       enabled: boolean
-      low: number
-      mid: number
-      high: number
+      gains: number[]
+      presetId: string
     }
-    setEqualizerBand: (band: 'low' | 'mid' | 'high', value: number) => void
+    equalizerFrequencies: ReadonlyArray<number>
+    equalizerPresets: EqualizerPreset[]
+    setEqualizerBand: (bandIndex: number, value: number) => void
     toggleEqualizer: (enabled: boolean) => void
     resetEqualizer: () => void
+    applyEqualizerPreset: (presetId: string) => void
+    saveEqualizerPreset: (name: string) => { ok: boolean; error?: string; id?: string }
+    deleteEqualizerPreset: (presetId: string) => { ok: boolean; error?: string }
     pendingAdBlock: { id: string; name: string } | null
     logs: PlayoutLogEntry[]
     clearLogs: () => void
@@ -340,60 +344,90 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     {
       id: 'equalizer',
       title: 'Ecualizador',
-      minW: 320,
-      minH: 230,
-      defaultRect: { x: 916, y: 12, w: 320, h: 300 },
+      minW: 480,
+      minH: 280,
+      defaultRect: { x: 916, y: 12, w: 540, h: 340 },
       content: (
         <div className={styles.equalizerPanel}>
-          <label className={styles.eqToggle}>
-            <input
-              type="checkbox"
-              checked={playout.equalizer.enabled}
-              onChange={(event) => playout.toggleEqualizer(event.target.checked)}
-            />
-            Ecualizador activo
-          </label>
-
-          <div className={styles.eqBandRow}>
-            <span className={styles.eqBandLabel}>Bajos</span>
-            <input
-              type="range"
-              min={-12}
-              max={12}
-              step={1}
-              value={playout.equalizer.low}
-              onChange={(event) => playout.setEqualizerBand('low', Number(event.target.value))}
-            />
-            <span className={styles.eqBandValue}>{playout.equalizer.low} dB</span>
+          <div className={styles.eqHeader}>
+            <label className={styles.eqToggle}>
+              <input
+                type="checkbox"
+                checked={playout.equalizer.enabled}
+                onChange={(event) => playout.toggleEqualizer(event.target.checked)}
+              />
+              Activo
+            </label>
+            <select
+              className={styles.eqPresetSelect}
+              value={playout.equalizer.presetId}
+              onChange={(event) => playout.applyEqualizerPreset(event.target.value)}
+            >
+              {playout.equalizer.presetId === 'custom' && (
+                <option value="custom">Custom (sin guardar)</option>
+              )}
+              <optgroup label="Built-in">
+                {playout.equalizerPresets.filter((p) => p.builtIn).map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </optgroup>
+              {playout.equalizerPresets.some((p) => !p.builtIn) && (
+                <optgroup label="Personalizados">
+                  {playout.equalizerPresets.filter((p) => !p.builtIn).map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            <button
+              className={styles.btnSecondary}
+              onClick={() => {
+                const name = window.prompt('Nombre del preset:')
+                if (!name) return
+                const result = playout.saveEqualizerPreset(name)
+                if (!result.ok) window.alert(result.error ?? 'No se pudo guardar el preset')
+              }}
+              title="Guardar configuración actual como preset"
+            >Guardar…</button>
+            {!playout.equalizerPresets.find((p) => p.id === playout.equalizer.presetId)?.builtIn
+              && playout.equalizer.presetId !== 'custom' && (
+              <button
+                className={styles.btnSecondary}
+                onClick={() => {
+                  if (!window.confirm('¿Eliminar este preset?')) return
+                  const result = playout.deleteEqualizerPreset(playout.equalizer.presetId)
+                  if (!result.ok) window.alert(result.error ?? 'No se pudo eliminar')
+                }}
+                title="Eliminar preset personalizado"
+              >Eliminar</button>
+            )}
+            <button className={styles.btnSecondary} onClick={playout.resetEqualizer} title="Volver a 0 dB">Reset</button>
           </div>
 
-          <div className={styles.eqBandRow}>
-            <span className={styles.eqBandLabel}>Medios</span>
-            <input
-              type="range"
-              min={-12}
-              max={12}
-              step={1}
-              value={playout.equalizer.mid}
-              onChange={(event) => playout.setEqualizerBand('mid', Number(event.target.value))}
-            />
-            <span className={styles.eqBandValue}>{playout.equalizer.mid} dB</span>
+          <div className={styles.eqBandsGrid}>
+            {playout.equalizerFrequencies.map((freq, idx) => {
+              const value = playout.equalizer.gains[idx] ?? 0
+              const label = freq >= 1000 ? `${(freq / 1000).toFixed(freq % 1000 === 0 ? 0 : 1)}k` : `${freq}`
+              return (
+                <div key={freq} className={styles.eqBandColumn}>
+                  <span className={styles.eqBandValue}>{value > 0 ? `+${value}` : value}</span>
+                  <input
+                    className={styles.eqBandSlider}
+                    type="range"
+                    min={-12}
+                    max={12}
+                    step={1}
+                    value={value}
+                    onChange={(event) => playout.setEqualizerBand(idx, Number(event.target.value))}
+                    aria-label={`Banda ${label} Hz`}
+                    /* @ts-expect-error vendor css custom orientation */
+                    orient="vertical"
+                  />
+                  <span className={styles.eqBandFreq}>{label}</span>
+                </div>
+              )
+            })}
           </div>
-
-          <div className={styles.eqBandRow}>
-            <span className={styles.eqBandLabel}>Agudos</span>
-            <input
-              type="range"
-              min={-12}
-              max={12}
-              step={1}
-              value={playout.equalizer.high}
-              onChange={(event) => playout.setEqualizerBand('high', Number(event.target.value))}
-            />
-            <span className={styles.eqBandValue}>{playout.equalizer.high} dB</span>
-          </div>
-
-          <button className={styles.btnSecondary} onClick={playout.resetEqualizer}>Reset EQ</button>
         </div>
       )
     },
@@ -499,14 +533,18 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     playout.adBreakTimer.name,
     playout.adBreakTimer.remainingLabel,
     playout.equalizer.enabled,
-    playout.equalizer.low,
-    playout.equalizer.mid,
-    playout.equalizer.high,
+    playout.equalizer.gains,
+    playout.equalizer.presetId,
+    playout.equalizerFrequencies,
+    playout.equalizerPresets,
     playout.nextAd.atLabel,
     playout.nextAd.countdownLabel,
     playout.resetEqualizer,
     playout.setEqualizerBand,
     playout.toggleEqualizer,
+    playout.applyEqualizerPreset,
+    playout.saveEqualizerPreset,
+    playout.deleteEqualizerPreset,
     playout.currentSec,
     playout.durationSec,
     playout.seek,

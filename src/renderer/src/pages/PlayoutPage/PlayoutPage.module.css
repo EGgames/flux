@@ -185,33 +185,82 @@
 .equalizerPanel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+.eqHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .eqToggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   color: var(--color-text-muted);
 }
 
-.eqBandRow {
+.eqPresetSelect {
+  flex: 1 1 140px;
+  min-width: 120px;
+  padding: 4px 6px;
+  background: var(--color-surface, #1b1d23);
+  color: var(--color-text, #e8e8e8);
+  border: 1px solid var(--color-border, #2a2d36);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.eqBandsGrid {
   display: grid;
-  grid-template-columns: 56px 1fr 58px;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: repeat(8, minmax(38px, 1fr));
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  padding: 6px 4px;
+  background: var(--color-surface, #1b1d23);
+  border: 1px solid var(--color-border, #2a2d36);
+  border-radius: 6px;
 }
 
-.eqBandLabel {
-  font-size: 12px;
-  color: var(--color-text-muted);
+.eqBandColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 160px;
 }
 
 .eqBandValue {
-  text-align: right;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-height: 12px;
+}
+
+.eqBandFreq {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.eqBandSlider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 18px;
+  flex: 1 1 auto;
+  min-height: 110px;
+  cursor: ns-resize;
+  accent-color: var(--color-accent, #4f9dff);
 }
 
 .adMonitorPanel {

@@ -9,11 +9,89 @@ interface LocalOutputConfig {
   deviceName?: string
 }
 
-interface EqualizerState {
+// ===== Equalizer (8 bands estilo Winamp) =====
+export const EQ_BAND_FREQS = [60, 170, 310, 600, 1000, 3000, 6000, 12000] as const
+export const EQ_BANDS_COUNT = EQ_BAND_FREQS.length
+export const EQ_GAIN_MIN = -12
+export const EQ_GAIN_MAX = 12
+
+export interface EqualizerPreset {
+  id: string
+  name: string
+  gains: number[]
+  builtIn: boolean
+}
+
+export const BUILT_IN_EQ_PRESETS: EqualizerPreset[] = [
+  { id: 'flat',       name: 'Flat',       gains: [ 0,  0,  0,  0,  0,  0,  0,  0], builtIn: true },
+  { id: 'rock',       name: 'Rock',       gains: [ 4,  3, -1, -2, -1,  2,  4,  5], builtIn: true },
+  { id: 'jazz',       name: 'Jazz',       gains: [ 3,  2,  1,  2, -2, -1,  0,  1], builtIn: true },
+  { id: 'pop',        name: 'Pop',        gains: [-1,  1,  3,  4,  3,  1, -1, -2], builtIn: true },
+  { id: 'classical',  name: 'Clásico',    gains: [ 4,  3,  2,  0,  0,  0,  2,  3], builtIn: true },
+  { id: 'bass-boost', name: 'Bass Boost', gains: [ 6,  5,  3,  1,  0,  0,  0,  0], builtIn: true },
+  { id: 'vocal',      name: 'Vocal',      gains: [-2, -1,  1,  3,  3,  2,  1, -1], builtIn: true },
+  { id: 'dance',      name: 'Dance',      gains: [ 4,  3,  1,  0, -1, -1,  2,  4], builtIn: true }
+]
+
+export interface EqualizerState {
   enabled: boolean
-  low: number
-  mid: number
-  high: number
+  gains: number[]   // length === EQ_BANDS_COUNT
+  presetId: string  // 'flat' | ... | 'custom' | id de preset guardado
+}
+
+function defaultEqState(): EqualizerState {
+  return { enabled: true, gains: new Array(EQ_BANDS_COUNT).fill(0), presetId: 'flat' }
+}
+
+function clampGain(v: number): number {
+  if (!Number.isFinite(v)) return 0
+  return Math.max(EQ_GAIN_MIN, Math.min(EQ_GAIN_MAX, Math.round(v)))
+}
+
+function normalizeGains(gains: unknown): number[] {
+  const arr = Array.isArray(gains) ? gains : []
+  const out = new Array<number>(EQ_BANDS_COUNT).fill(0)
+  for (let i = 0; i < EQ_BANDS_COUNT; i++) out[i] = clampGain(Number(arr[i] ?? 0))
+  return out
+}
+
+function eqStorageKey(profileId: string | null): string | null {
+  return profileId ? `eq:v2:${profileId}` : null
+}
+
+interface PersistedEqPayload {
+  enabled: boolean
+  presetId: string
+  gains: number[]
+  customPresets: EqualizerPreset[]
+}
+
+function loadPersistedEq(profileId: string | null): PersistedEqPayload | null {
+  const key = eqStorageKey(profileId)
+  if (!key || typeof window === 'undefined' || !window.localStorage) return null
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<PersistedEqPayload>
+    return {
+      enabled: parsed.enabled !== false,
+      presetId: typeof parsed.presetId === 'string' ? parsed.presetId : 'flat',
+      gains: normalizeGains(parsed.gains),
+      customPresets: Array.isArray(parsed.customPresets)
+        ? parsed.customPresets
+            .filter((p): p is EqualizerPreset => !!p && typeof p.id === 'string' && typeof p.name === 'string')
+            .map((p) => ({ id: p.id, name: p.name, gains: normalizeGains(p.gains), builtIn: false }))
+        : []
+    }
+  } catch {
+    return null
+  }
+}
+
+function savePersistedEq(profileId: string | null, payload: PersistedEqPayload): void {
+  const key = eqStorageKey(profileId)
+  if (!key || typeof window === 'undefined' || !window.localStorage) return
+  try { window.localStorage.setItem(key, JSON.stringify(payload)) } catch { /* quota */ }
 }
 
 export interface PlayoutLogEntry {
@@ -103,12 +181,8 @@ export function usePlayout() {
     })
   }, [])
   const clearLogs = useCallback(() => setLogs([]), [])
-  const [equalizer, setEqualizer] = useState<EqualizerState>({
-    enabled: true,
-    low: 0,
-    mid: 0,
-    high: 0
-  })
+  const [equalizer, setEqualizer] = useState<EqualizerState>(defaultEqState)
+  const [customPresets, setCustomPresets] = useState<EqualizerPreset[]>([])
   const eqEnabledRef = useRef(true)
   const [nextAdCountdownSec, setNextAdCountdownSec] = useState<number | null>(null)
   const [nextAdLabel, setNextAdLabel] = useState<string>('Sin tanda programada')
@@ -131,11 +205,7 @@ export function usePlayout() {
   const eqCtxRef = useRef<AudioContext | null>(null)
   const eqSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const eqCapturedNodeRef = useRef<HTMLAudioElement | null>(null)
-  const eqNodesRef = useRef<{
-    low: BiquadFilterNode
-    mid: BiquadFilterNode
-    high: BiquadFilterNode
-  } | null>(null)
+  const eqNodesRef = useRef<BiquadFilterNode[] | null>(null)
   const timeRulesRef = useRef<TimeRule[]>([])
   const nextAdTargetRef = useRef<number | null>(null)
   const adBreakStartedAtRef = useRef<number | null>(null)
@@ -164,23 +234,28 @@ export function usePlayout() {
     const ctx = eqCtxRef.current
     if (eqNodesRef.current) return
 
-    const low = ctx.createBiquadFilter()
-    low.type = 'lowshelf'
-    low.frequency.value = 120
+    // 8 bandas: lowshelf en la primera, highshelf en la última, peaking (Q ~1.4) en el medio.
+    const nodes: BiquadFilterNode[] = EQ_BAND_FREQS.map((freq, idx) => {
+      const f = ctx.createBiquadFilter()
+      if (idx === 0) {
+        f.type = 'lowshelf'
+        f.frequency.value = freq
+      } else if (idx === EQ_BAND_FREQS.length - 1) {
+        f.type = 'highshelf'
+        f.frequency.value = freq
+      } else {
+        f.type = 'peaking'
+        f.frequency.value = freq
+        f.Q.value = 1.4
+      }
+      f.gain.value = 0
+      return f
+    })
 
-    const mid = ctx.createBiquadFilter()
-    mid.type = 'peaking'
-    mid.frequency.value = 1000
-    mid.Q.value = 1
-
-    const high = ctx.createBiquadFilter()
-    high.type = 'highshelf'
-    high.frequency.value = 4500
-
-    low.connect(mid)
-    mid.connect(high)
-    high.connect(ctx.destination)
-    eqNodesRef.current = { low, mid, high }
+    // Conectar en serie: nodes[0] -> nodes[1] -> ... -> destination
+    for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1])
+    nodes[nodes.length - 1].connect(ctx.destination)
+    eqNodesRef.current = nodes
   }, [])
 
   // Keep the EQ AudioContext routed to the current sink device when it changes
@@ -218,7 +293,7 @@ export function usePlayout() {
 
     try {
       const source = ctx.createMediaElementSource(audioEl)
-      source.connect(nodes.low)
+      source.connect(nodes[0])
       eqSourceRef.current = source
       eqCapturedNodeRef.current = audioEl
       if (ctx.state === 'suspended') void ctx.resume()
@@ -234,14 +309,14 @@ export function usePlayout() {
     const nodes = eqNodesRef.current
     const ctx = eqCtxRef.current
     if (!nodes || !ctx) return
-    // Smooth ramping (50ms) avoids clicks/pops. EQ is always pre-routed at track start;
-    // toggling enabled just changes the gain values, no reroute, no glitch.
+    // Smooth ramping (~30 ms) evita clicks al mover sliders en tiempo real.
     const now = ctx.currentTime
-    const ramp = 0.05
+    const ramp = 0.03
     const multiplier = equalizer.enabled ? 1 : 0
-    nodes.low.gain.setTargetAtTime(equalizer.low * multiplier, now, ramp)
-    nodes.mid.gain.setTargetAtTime(equalizer.mid * multiplier, now, ramp)
-    nodes.high.gain.setTargetAtTime(equalizer.high * multiplier, now, ramp)
+    for (let i = 0; i < nodes.length; i++) {
+      const target = (equalizer.gains[i] ?? 0) * multiplier
+      nodes[i].gain.setTargetAtTime(target, now, ramp)
+    }
   }, [equalizer])
 
   const applySinkToHowl = useCallback(async (howl: Howl) => {
@@ -741,8 +816,14 @@ export function usePlayout() {
     await playoutService.syncProgram(profileId, playlistId)
   }, [])
 
-  const setEqualizerBand = useCallback((band: 'low' | 'mid' | 'high', value: number) => {
-    setEqualizer((prev) => ({ ...prev, [band]: value }))
+  const setEqualizerBand = useCallback((bandIndex: number, value: number) => {
+    if (!Number.isInteger(bandIndex) || bandIndex < 0 || bandIndex >= EQ_BANDS_COUNT) return
+    const v = clampGain(value)
+    setEqualizer((prev) => {
+      const next = prev.gains.slice()
+      next[bandIndex] = v
+      return { ...prev, gains: next, presetId: 'custom' }
+    })
   }, [])
 
   const toggleEqualizer = useCallback((enabled: boolean) => {
@@ -756,8 +837,67 @@ export function usePlayout() {
   }, [])
 
   const resetEqualizer = useCallback(() => {
-    setEqualizer((prev) => ({ enabled: prev.enabled, low: 0, mid: 0, high: 0 }))
+    setEqualizer((prev) => ({ enabled: prev.enabled, gains: new Array(EQ_BANDS_COUNT).fill(0), presetId: 'flat' }))
   }, [])
+
+  const allEqPresets = useCallback((): EqualizerPreset[] => {
+    return [...BUILT_IN_EQ_PRESETS, ...customPresets]
+  }, [customPresets])
+
+  const applyEqualizerPreset = useCallback((presetId: string) => {
+    const all = [...BUILT_IN_EQ_PRESETS, ...customPresets]
+    const preset = all.find((p) => p.id === presetId)
+    if (!preset) return
+    setEqualizer((prev) => ({ ...prev, gains: normalizeGains(preset.gains), presetId: preset.id }))
+  }, [customPresets])
+
+  const saveEqualizerPreset = useCallback((name: string): { ok: boolean; error?: string; id?: string } => {
+    const trimmed = name.trim()
+    if (!trimmed) return { ok: false, error: 'El nombre no puede estar vacío' }
+    const all = [...BUILT_IN_EQ_PRESETS, ...customPresets]
+    if (all.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
+      return { ok: false, error: 'Ya existe un preset con ese nombre' }
+    }
+    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const newPreset: EqualizerPreset = { id, name: trimmed, gains: equalizer.gains.slice(), builtIn: false }
+    setCustomPresets((prev) => [...prev, newPreset])
+    setEqualizer((prev) => ({ ...prev, presetId: id }))
+    return { ok: true, id }
+  }, [customPresets, equalizer.gains])
+
+  const deleteEqualizerPreset = useCallback((presetId: string): { ok: boolean; error?: string } => {
+    if (BUILT_IN_EQ_PRESETS.some((p) => p.id === presetId)) {
+      return { ok: false, error: 'No se pueden eliminar presets built-in' }
+    }
+    setCustomPresets((prev) => prev.filter((p) => p.id !== presetId))
+    setEqualizer((prev) => prev.presetId === presetId ? { ...prev, presetId: 'custom' } : prev)
+    return { ok: true }
+  }, [])
+
+  // Persistencia: cargar al cambiar de Perfil, guardar al cambiar EQ/customs
+  useEffect(() => {
+    const profileId = status.profileId
+    if (!profileId) return
+    const persisted = loadPersistedEq(profileId)
+    if (persisted) {
+      setEqualizer({ enabled: persisted.enabled, gains: persisted.gains, presetId: persisted.presetId })
+      setCustomPresets(persisted.customPresets)
+    } else {
+      setEqualizer(defaultEqState())
+      setCustomPresets([])
+    }
+  }, [status.profileId])
+
+  useEffect(() => {
+    const profileId = status.profileId
+    if (!profileId) return
+    savePersistedEq(profileId, {
+      enabled: equalizer.enabled,
+      presetId: equalizer.presetId,
+      gains: equalizer.gains,
+      customPresets
+    })
+  }, [status.profileId, equalizer, customPresets])
 
   return {
     status,
@@ -786,9 +926,14 @@ export function usePlayout() {
       atLabel: nextAdLabel
     },
     equalizer,
+    equalizerFrequencies: EQ_BAND_FREQS,
+    equalizerPresets: allEqPresets(),
     setEqualizerBand,
     toggleEqualizer,
     resetEqualizer,
+    applyEqualizerPreset,
+    saveEqualizerPreset,
+    deleteEqualizerPreset,
     volume,
     setVolume,
     logs,
