@@ -422,7 +422,10 @@ export function usePlayout() {
         }
       }
     }
-    if (applied > 0 && !lastErr) {
+    if (applied > 0) {
+      // Al menos un nodo de audio quedo enrutado al device pedido => exito real.
+      // Si hubo un error en otro sound del pool html5 de Howler lo ignoramos:
+      // el audio ya esta saliendo por el device correcto.
       appendLog('info', `Salida principal -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
     } else if (lastErr) {
       const e = lastErr as Error
@@ -450,7 +453,7 @@ export function usePlayout() {
         }
       }
     }
-    if (applied > 0 && !lastErr) {
+    if (applied > 0) {
       appendLog('info', `Monitor -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
     } else if (lastErr) {
       const e = lastErr as Error
