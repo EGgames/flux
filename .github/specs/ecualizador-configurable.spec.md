@@ -1,17 +1,18 @@
 ---
 id: SPEC-003
-status: DRAFT
+status: IMPLEMENTED
 feature: ecualizador-configurable
 created: 2026-04-24
 updated: 2026-04-24
 author: spec-generator
-version: "1.0"
+version: "1.1"
 related-specs: [SPEC-001]
 ---
 
 # Spec: Ecualizador 100% Configurable con Templates
 
-> **Estado:** `DRAFT` → aprobar con `status: APPROVED` antes de iniciar implementación.
+> **Estado:** `IMPLEMENTED` (commits `5c71109`, `1fe3ca1`, `edc7877`, `c1f7537`, `d6ccf14`).
+> Implementación final: **10 bandas ISO** (31/62/125/250/500/1k/2k/4k/8k/16k Hz) con persistencia en `localStorage` por perfil (no se creó tabla SQL para evitar migration; se mantiene la posibilidad de migrar a DB en una versión posterior).
 > **Ciclo de vida:** DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → DEPRECATED
 
 ---

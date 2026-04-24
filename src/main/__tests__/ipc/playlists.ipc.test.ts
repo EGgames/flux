@@ -60,6 +60,53 @@ describe('playlists.ipc', () => {
     })
   })
 
+  describe('playlist:list', () => {
+    it('queries playlists by profile with includes and orderBy name asc', async () => {
+      db.playlist.findMany.mockResolvedValue([{ id: 'pl1' }])
+
+      const result = await invokeHandler(handlers, 'playlist:list', 'p1')
+
+      expect(db.playlist.findMany).toHaveBeenCalledWith({
+        where: { profileId: 'p1' },
+        include: { _count: { select: { items: true } } },
+        orderBy: { name: 'asc' }
+      })
+      expect(result).toEqual([{ id: 'pl1' }])
+    })
+  })
+
+  describe('playlist:get-with-items', () => {
+    it('gets playlist with item assets ordered by position', async () => {
+      db.playlist.findUnique.mockResolvedValue({ id: 'pl1', items: [] })
+
+      const result = await invokeHandler(handlers, 'playlist:get-with-items', 'pl1')
+
+      expect(db.playlist.findUnique).toHaveBeenCalledWith({
+        where: { id: 'pl1' },
+        include: {
+          items: {
+            include: { audioAsset: true },
+            orderBy: { position: 'asc' }
+          }
+        }
+      })
+      expect(result).toEqual({ id: 'pl1', items: [] })
+    })
+  })
+
+  describe('playlist:update', () => {
+    it('updates playlist by id', async () => {
+      db.playlist.update.mockResolvedValue({ id: 'pl1', name: 'Nuevo' })
+
+      await invokeHandler(handlers, 'playlist:update', 'pl1', { name: 'Nuevo', enabled: false })
+
+      expect(db.playlist.update).toHaveBeenCalledWith({
+        where: { id: 'pl1' },
+        data: { name: 'Nuevo', enabled: false }
+      })
+    })
+  })
+
   describe('playlist:add-item', () => {
     it('creates an item with playlistId, audioAssetId, position', async () => {
       db.playlistItem.create.mockResolvedValue({ id: 'i1' })
@@ -67,6 +114,30 @@ describe('playlists.ipc', () => {
       expect(db.playlistItem.create).toHaveBeenCalledWith({
         data: { playlistId: 'pl1', audioAssetId: 'a1', position: 5 }
       })
+    })
+  })
+
+  describe('playlist:remove-item', () => {
+    it('deletes item by id and returns success', async () => {
+      const result = await invokeHandler(handlers, 'playlist:remove-item', 'i1')
+
+      expect(db.playlistItem.delete).toHaveBeenCalledWith({ where: { id: 'i1' } })
+      expect(result).toEqual({ success: true })
+    })
+  })
+
+  describe('playlist:reorder edge case', () => {
+    it('returns success for empty item list without updates', async () => {
+      db.playlistItem.findMany.mockResolvedValue([])
+
+      const result = await invokeHandler(handlers, 'playlist:reorder', 'pl1', [])
+
+      expect(db.playlistItem.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [] }, playlistId: 'pl1' },
+        select: { id: true }
+      })
+      expect(db.playlistItem.update).not.toHaveBeenCalled()
+      expect(result).toEqual({ success: true })
     })
   })
 

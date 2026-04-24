@@ -47,6 +47,66 @@ describe('adBlocks.ipc', () => {
     })
   })
 
+  describe('ad-block:get-with-items', () => {
+    it('queries block by id including items and rules', async () => {
+      db.adBlock.findUnique.mockResolvedValue({ id: 'b1' })
+
+      const result = await invokeHandler(handlers, 'ad-block:get-with-items', 'b1')
+
+      expect(db.adBlock.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'b1' },
+        include: expect.objectContaining({
+          items: expect.any(Object),
+          rules: true
+        })
+      }))
+      expect(result).toEqual({ id: 'b1' })
+    })
+  })
+
+  describe('ad-block:update', () => {
+    it('updates block data by id', async () => {
+      db.adBlock.update.mockResolvedValue({ id: 'b1', name: 'B2' })
+
+      await invokeHandler(handlers, 'ad-block:update', 'b1', { name: 'B2', enabled: true })
+
+      expect(db.adBlock.update).toHaveBeenCalledWith({
+        where: { id: 'b1' },
+        data: { name: 'B2', enabled: true }
+      })
+    })
+  })
+
+  describe('ad-block:delete', () => {
+    it('deletes by id and returns success', async () => {
+      const result = await invokeHandler(handlers, 'ad-block:delete', 'b1')
+
+      expect(db.adBlock.delete).toHaveBeenCalledWith({ where: { id: 'b1' } })
+      expect(result).toEqual({ success: true })
+    })
+  })
+
+  describe('ad-block:add-item', () => {
+    it('creates ad block item with adBlockId/audioAssetId/position', async () => {
+      db.adBlockItem.create.mockResolvedValue({ id: 'abi1' })
+
+      await invokeHandler(handlers, 'ad-block:add-item', 'b1', 'a1', 3)
+
+      expect(db.adBlockItem.create).toHaveBeenCalledWith({
+        data: { adBlockId: 'b1', audioAssetId: 'a1', position: 3 }
+      })
+    })
+  })
+
+  describe('ad-block:remove-item', () => {
+    it('deletes ad block item and returns success', async () => {
+      const result = await invokeHandler(handlers, 'ad-block:remove-item', 'abi1')
+
+      expect(db.adBlockItem.delete).toHaveBeenCalledWith({ where: { id: 'abi1' } })
+      expect(result).toEqual({ success: true })
+    })
+  })
+
   describe('ad-block:trigger', () => {
     it('returns block when found', async () => {
       const block = { id: 'b1', items: [] }
@@ -96,6 +156,38 @@ describe('adBlocks.ipc', () => {
       })
       expect(db.adRule.findFirst).not.toHaveBeenCalled()
       expect(db.adRule.create).toHaveBeenCalled()
+    })
+  })
+
+  describe('ad-rule:list', () => {
+    it('lists profile rules ordered by priority and createdAt', async () => {
+      db.adRule.findMany.mockResolvedValue([{ id: 'r1' }])
+
+      const result = await invokeHandler(handlers, 'ad-rule:list', 'p1')
+
+      expect(db.adRule.findMany).toHaveBeenCalledWith({
+        where: { profileId: 'p1' },
+        include: { adBlock: true },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }]
+      })
+      expect(result).toEqual([{ id: 'r1' }])
+    })
+  })
+
+  describe('ad-rule:update', () => {
+    it('updates ad rule fields', async () => {
+      db.adRule.update.mockResolvedValue({ id: 'r1' })
+
+      await invokeHandler(handlers, 'ad-rule:update', 'r1', {
+        triggerConfig: '{"time":"10:00"}',
+        priority: 10,
+        enabled: false
+      })
+
+      expect(db.adRule.update).toHaveBeenCalledWith({
+        where: { id: 'r1' },
+        data: { triggerConfig: '{"time":"10:00"}', priority: 10, enabled: false }
+      })
     })
   })
 

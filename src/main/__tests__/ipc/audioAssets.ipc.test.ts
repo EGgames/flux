@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('electron', () => ({
-  ipcMain: { handle: vi.fn() },
-  dialog: { showOpenDialog: vi.fn() },
-  BrowserWindow: { fromWebContents: vi.fn(() => ({})) }
-}))
+vi.mock('electron', () => {
+  const ipcMain = { handle: vi.fn() }
+  const dialog = { showOpenDialog: vi.fn() }
+  const BrowserWindow = { fromWebContents: vi.fn(() => ({})) }
+
+  return {
+    ipcMain,
+    dialog,
+    BrowserWindow,
+    default: {
+      ipcMain,
+      dialog,
+      BrowserWindow
+    }
+  }
+})
 
 vi.mock('../../utils/audio', () => ({
   getAudioDurationMs: vi.fn(async () => 12345)
@@ -71,6 +82,21 @@ describe('audioAssets.ipc', () => {
       const result = await invokeHandler<unknown[]>(handlers, 'audio-asset:import-batch', [])
       expect(result).toEqual([])
       expect(db.audioAsset.create).not.toHaveBeenCalled()
+    })
+
+    it('derives each asset name from extensionless filename', async () => {
+      db.audioAsset.create
+        .mockResolvedValueOnce({ id: 'a1', name: 'x' })
+        .mockResolvedValueOnce({ id: 'a2', name: 'y' })
+
+      await invokeHandler(handlers, 'audio-asset:import-batch', ['/music/X.m4a', '/music/Y.aac'])
+
+      expect(db.audioAsset.create).toHaveBeenNthCalledWith(1, {
+        data: { name: 'X', sourceType: 'local', sourcePath: '/music/X.m4a', durationMs: 12345 }
+      })
+      expect(db.audioAsset.create).toHaveBeenNthCalledWith(2, {
+        data: { name: 'Y', sourceType: 'local', sourcePath: '/music/Y.aac', durationMs: 12345 }
+      })
     })
   })
 

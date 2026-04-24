@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const useSoundboard = vi.fn()
@@ -7,7 +7,12 @@ vi.mock('@renderer/hooks/useSoundboard', () => ({
   useSoundboard: (...args: unknown[]) => useSoundboard(...args)
 }))
 vi.mock('@renderer/components/SoundboardGrid/SoundboardGrid', () => ({
-  default: () => <div data-testid="sb-grid" />
+  default: ({ onAssign, onTrigger }: { onAssign: (slot: number) => void; onTrigger: (slot: number) => void }) => (
+    <div data-testid="sb-grid">
+      <button onClick={() => onAssign(3)}>Assign slot 3</button>
+      <button onClick={() => onTrigger(5)}>Trigger slot 5</button>
+    </div>
+  )
 }))
 
 import SoundboardPage from '@renderer/pages/SoundboardPage/SoundboardPage'
@@ -25,7 +30,19 @@ const baseHook = {
 
 describe('SoundboardPage', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     useSoundboard.mockReturnValue({ ...baseHook })
+
+    Object.defineProperty(window, 'electronAPI', {
+      configurable: true,
+      writable: true,
+      value: {
+        audioAssets: {
+          pickFiles: vi.fn().mockResolvedValue(['C:/jingle.mp3']),
+          importBatch: vi.fn().mockResolvedValue([{ id: 'a-1', name: 'Jingle' }])
+        }
+      }
+    })
   })
 
   it('renders the grid component', () => {
@@ -68,5 +85,35 @@ describe('SoundboardPage', () => {
     render(<SoundboardPage profileId="p1" />)
     fireEvent.click(screen.getByText('▶ Reanudar'))
     expect(resumeAll).toHaveBeenCalled()
+  })
+
+  it('asigna audio en un slot cuando hay archivo seleccionado', async () => {
+    const assign = vi.fn().mockResolvedValue(undefined)
+    useSoundboard.mockReturnValue({ ...baseHook, assign })
+
+    render(<SoundboardPage profileId="p1" />)
+    fireEvent.click(screen.getByText('Assign slot 3'))
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(3, { audioAssetId: 'a-1', label: 'Jingle' }))
+  })
+
+  it('limpia estado de asignación cuando el usuario cancela picker', async () => {
+    ;(window.electronAPI.audioAssets.pickFiles as ReturnType<typeof vi.fn>).mockResolvedValueOnce([])
+    const assign = vi.fn().mockResolvedValue(undefined)
+    useSoundboard.mockReturnValue({ ...baseHook, assign })
+
+    render(<SoundboardPage profileId="p1" />)
+    fireEvent.click(screen.getByText('Assign slot 3'))
+
+    await waitFor(() => expect(assign).not.toHaveBeenCalled())
+  })
+
+  it('delegates trigger callback al grid', () => {
+    const trigger = vi.fn()
+    useSoundboard.mockReturnValue({ ...baseHook, trigger })
+
+    render(<SoundboardPage profileId="p1" />)
+    fireEvent.click(screen.getByText('Trigger slot 5'))
+    expect(trigger).toHaveBeenCalledWith(5)
   })
 })
