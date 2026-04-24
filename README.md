@@ -20,6 +20,7 @@ Radio automation desktop software con playout local, programación de tandas, so
   - [Tandas / Ad Blocks](#tandas--ad-blocks)
   - [Programs / Scheduler](#programs--scheduler)
   - [Streaming Icecast/Shoutcast](#streaming-icecastshoutcast)
+  - [Salidas de audio (sinkId + Monitor)](#salidas-de-audio-sinkid--monitor)
   - [Profiles](#profiles)
 - [Testing](#testing)
 - [Documentación adicional](#documentación-adicional)
@@ -37,7 +38,7 @@ Radio automation desktop software con playout local, programación de tandas, so
 - **Streaming** a servidores Icecast / Shoutcast.
 - **Profiles** independientes (cada perfil tiene su biblioteca, EQ, layout y configuración).
 - **Workspace personalizable**: paneles arrastrables y persistidos en `localStorage`.
-- **Multi-output**: soporta enrutar el audio a un dispositivo de salida específico (sinkId).
+- **Multi-output en vivo**: enrutado de la reproducción a una **salida principal** y un **monitor de cabina** independiente, ambos cambiables al instante sin detener el track (`HTMLMediaElement.setSinkId`). Los `deviceId` reales requieren permiso de audio (`media`), otorgado automáticamente por el proceso main.
 
 ---
 
@@ -163,6 +164,19 @@ Programación de programas con expresiones cron via `node-cron`. Cada programa a
 ### Streaming Icecast/Shoutcast
 
 El `streamingService` empaqueta el audio capturado del playout y lo envía por HTTP `PUT/SOURCE` a un servidor Icecast (o Shoutcast v1/v2 con compatibilidad).
+
+### Salidas de audio (sinkId + Monitor)
+
+Gestión del enrutado de audio hacia tarjetas físicas configurada en `IntegrationsPage` y aplicada por `usePlayout`.
+
+| Pieza | Detalle |
+|---|---|
+| Salida principal | Howl HTML5 cuyo `<audio>` se rutea vía `setSinkId(deviceId)` al device elegido. `default` = sink del sistema. |
+| Monitor | Howl secundario opcional que reproduce el **mismo source** en paralelo en otro device (uso típico: auriculares de cabina). Se crea/destruye al vuelo. |
+| Permisos | Main process otorga `media` automáticamente (`setPermissionRequestHandler`). Sin esto, Chromium devuelve `deviceId` opacos y `setSinkId` rechaza con `NotFoundError`. |
+| Hot-reload | `IntegrationsPage` autoguarda al cambiar el dropdown y despacha `window.dispatchEvent(new CustomEvent('flux:outputs-changed'))`. `usePlayout` escucha y reaplica `setSinkId` al Howl actual + crea/destruye `monitorHowl` sin reiniciar el track. |
+| Resiliencia | `setSinkId` reintenta hasta 3 veces con 120ms de espera (cubre `AbortError` cuando el `<audio>` aún no adjuntó el src). Éxito parcial sobre el pool html5 de Howler se considera éxito (basta con un nodo enrutado). |
+| Logs | Cada cambio se registra en el panel: `Salida principal -> XXXXX…`, `Monitor -> XXXXX…` o `setSinkId fallo (NotFoundError: …)`. |
 
 ### Profiles
 

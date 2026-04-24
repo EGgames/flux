@@ -208,14 +208,22 @@ El perfil activo se indica con un badge **Activo**.
 
 ## 9. Integraciones — Salidas de audio
 
-Configura *dónde* suena la radio. Se pueden activar varias salidas en simultáneo.
+Configura *dónde* suena la radio. Se pueden activar varias salidas en simultáneo y los cambios se aplican **en vivo** sobre el track en reproducción (no hace falta detener ni reiniciar).
 
 ### 9.1 Salidas locales
 
-- **Local (Tarjeta de sonido)**: salida principal. Selector con todos los dispositivos enumerados por el sistema operativo.
-- **Monitor (cabina)**: salida secundaria, pensada para auriculares del locutor. Permite escuchar lo mismo que sale al aire por una segunda tarjeta.
+- **Local (Tarjeta de sonido)**: salida principal por la que sale el audio al aire.
+- **Monitor (cabina)**: salida secundaria, pensada para auriculares del locutor. Reproduce el mismo audio en paralelo en otro dispositivo físico.
 
-Para cada una: toggle **on/off**, **Guardar** y **Probar**.
+**Cómo seleccionar el dispositivo:**
+
+1. La primera vez que abrís Integraciones, el sistema solicita permiso de audio (necesario para que Windows/Chromium expongan los nombres reales de las tarjetas de sonido). Aceptalo.
+2. Desplegá el selector y elegí el dispositivo. Aparece la lista completa de salidas que detecta el sistema operativo (incluyendo HDMI, USB, Bluetooth, virtual cables, etc.).
+3. **El cambio se guarda y se aplica al instante**: no hace falta apretar Guardar. Vas a ver en el panel de Logs una entrada `Salida principal -> XXXXX…` o `Monitor -> XXXXX…` confirmando el ruteo.
+4. El botón **Guardar** queda solo como respaldo manual.
+5. El toggle **Habilitado** prende o apaga la salida (también se aplica en vivo).
+
+> Caso típico de monitor: enviás el aire a la consola por la salida principal y escuchás el preview por unos auriculares enchufados a otra placa USB.
 
 ### 9.2 Streaming
 
@@ -248,14 +256,18 @@ Cada uno tiene:
 
 | Problema | Causa probable / Solución |
 |----------|--------------------------|
-| **No se escucha nada** | Verificar en Integraciones que la salida local esté activa y apunte al device correcto. |
+| **No se escucha nada** | Verificar en Integraciones que la salida local esté activa y apunte al device correcto. Mirar el panel de Logs: si dice `setSinkId fallo (NotFoundError…)` significa que el dispositivo ya no existe o el SO le cambió el ID — volver a seleccionarlo del selector. |
+| **Los nombres de las tarjetas aparecen como `Salida abc123…`** | Falta el permiso de audio. Reiniciar la app y aceptar el prompt de micrófono. Sin ese permiso Chromium devuelve los `deviceId` anonimizados y `setSinkId` falla. |
+| **Cambié el dispositivo pero el audio sigue saliendo por el anterior** | El cambio es instantáneo: revisá el panel de Logs, debe aparecer `Salida principal -> …` con el nuevo device. Si no aparece, presioná **Guardar** manualmente. |
+| **Iniciar después de Detener no arranca el primer tema** | Resuelto: si seguís viéndolo, asegurate de estar en la última versión. |
+| **El log se llena con entradas duplicadas** | Resuelto: `appendLog` deduplica entradas idénticas dentro de 1 segundo. |
 | **El tema parece reiniciarse al activar EQ** | Resuelto: el EQ ahora se enruta a la misma salida configurada. Si persiste, verificar que el sink del navegador soporte `setSinkId` (Chromium 110+). |
 | **La tanda no se dispara** | (1) Verificar que la tanda tenga al menos un audio. (2) Si es por horario, esperar a que termine el tema en curso (aparece el aviso). (3) Para disparo inmediato usar el botón **▶ Disparar**. |
 | **El stream Icecast/Shoutcast no conecta** | Usar **Probar conexión**. Verificar host, puerto, credenciales y que el servidor esté online. |
-| **El monitor de cabina no suena** | Confirmar que el toggle esté activo y que el dispositivo seleccionado no sea el mismo que la salida principal. |
+| **El monitor de cabina no suena** | Confirmar que el toggle esté activo y que el dispositivo seleccionado **no sea el mismo** que la salida principal. Mirar el panel de Logs: debe aparecer `Monitor -> …` con el device correcto. |
 | **Las playlists desaparecieron** | Probablemente cambiaste de **Perfil**. Cada perfil tiene sus propias listas. |
 | **Cambios en la grilla no se aplican** | Los Programas se evalúan al iniciar la franja. Si ya está sonando otra playlist, esperar al próximo cambio o usar **Cambiar** manualmente. |
 
 ---
 
-*Versión del documento: 1.0 — Generado para Flux.*
+*Versión del documento: 1.1 — Actualizado: salidas de audio en vivo, monitor multi-device y diagnóstico via panel de Logs.*
