@@ -34,6 +34,7 @@ export class PlayoutService {
   }> = []
   private queueIndex = 0
   private songsSinceLastAd = 0
+  private pendingAdBlockId: string | null = null
   private adRuleInterval: NodeJS.Timeout | null = null
 
   private async resolveCurrentPlaylist(profileId: string): Promise<Array<{
@@ -77,10 +78,14 @@ export class PlayoutService {
 
   constructor(
     private db: PrismaClient,
-    private schedulerService: SchedulerService,
-    private streamingService: StreamingService,
+    schedulerService: SchedulerService,
+    streamingService: StreamingService,
     private win: BrowserWindow
-  ) {}
+  ) {
+    // Reserved for future cross-service coordination (program changes, live streaming).
+    void schedulerService
+    void streamingService
+  }
 
   async start(profileId: string, playlistId?: string, startIndex = 0): Promise<PlayoutStatus> {
     this.profileId = profileId
@@ -151,6 +156,19 @@ export class PlayoutService {
 
   async next(): Promise<void> {
     if (this.queue.length === 0) return
+
+    // If a time-based ad block is pending, fire it at this song boundary
+    if (this.pendingAdBlockId) {
+      const pendingId = this.pendingAdBlockId
+      this.pendingAdBlockId = null
+      // Advance to the next track so it plays after the ads finish
+      const ni = this.queueIndex + 1
+      this.queueIndex = ni < this.queue.length ? ni : 0
+      this.songsSinceLastAd = 0
+      await this.triggerAdBlock(pendingId)
+      return
+    }
+
     const nextIndex = this.queueIndex + 1
     if (nextIndex >= this.queue.length) {
       this.state = 'stopped'
@@ -161,8 +179,13 @@ export class PlayoutService {
     }
     this.queueIndex = nextIndex
     this.songsSinceLastAd++
-    this.emitTrackChange()
+
+    // Check song-count rules BEFORE emitting track-changed so that if an ad
+    // fires, adBreakEnd() handles emitting the next track (no race condition)
     await this.checkSongCountRules()
+    if (this.state === 'playing') {
+      this.emitTrackChange()
+    }
   }
 
   async syncProgram(profileId: string, playlistId?: string | null): Promise<PlayoutStatus> {
@@ -259,6 +282,7 @@ export class PlayoutService {
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
       const rules = await this.db.adRule.findMany({
         where: { profileId, triggerType: 'time', enabled: true },
+        include: { adBlock: true },
         orderBy: { priority: 'desc' }
       })
       for (const rule of rules) {
@@ -271,7 +295,7 @@ export class PlayoutService {
 
         // Legacy format compatibility: triggerConfig = "HH:MM"
         if (typeof config === 'string' && config === timeStr) {
-          await this.triggerAdBlock(rule.adBlockId)
+          this.schedulePendingAdBlock(rule.adBlockId, rule.adBlock?.name ?? 'Tanda')
           break
         }
 
@@ -282,17 +306,23 @@ export class PlayoutService {
         const ruleDay = typeof typedConfig.dayOfWeek === 'number' ? typedConfig.dayOfWeek : null
         const ruleTime = typeof typedConfig.time === 'string' ? typedConfig.time : null
         if (ruleTime && ruleDay !== null && ruleDay === dayOfWeek && ruleTime === timeStr) {
-          await this.triggerAdBlock(rule.adBlockId)
+          this.schedulePendingAdBlock(rule.adBlockId, rule.adBlock?.name ?? 'Tanda')
           break
         }
 
         // Previous JSON format compatibility: { time: "HH:MM" }
         if (ruleTime && ruleDay === null && ruleTime === timeStr) {
-          await this.triggerAdBlock(rule.adBlockId)
+          this.schedulePendingAdBlock(rule.adBlockId, rule.adBlock?.name ?? 'Tanda')
           break
         }
       }
     }, 60_000)
+  }
+
+  private schedulePendingAdBlock(adBlockId: string, name: string): void {
+    this.pendingAdBlockId = adBlockId
+    this.win.webContents.send('playout:ad-pending', { adBlockId, name })
+    log.info(`[PlayoutService] Tanda programada al fin del tema: "${name}" (${adBlockId})`)
   }
 
   private clearSongCountWatcher(): void {

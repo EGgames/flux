@@ -164,7 +164,17 @@ export default function AdBreaksPage({ profileId }: Props) {
             >
               <div className={styles.listItemHeader}>
                 <span className={styles.listItemName}>{block.name}</span>
-                <button className={styles.btnDanger} onClick={(e) => { e.stopPropagation(); removeBlock(block.id) }}>✕</button>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    className={styles.btnPrimary}
+                    title="Disparar tanda ahora"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void window.electronAPI.playout.triggerAdBlock(block.id)
+                    }}
+                  >▶ Disparar</button>
+                  <button className={styles.btnDanger} onClick={(e) => { e.stopPropagation(); removeBlock(block.id) }}>✕</button>
+                </div>
               </div>
             </div>
           ))}

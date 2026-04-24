@@ -1,0 +1,500 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="187" failures="0" errors="0" time="4.613">
+    <testsuite name="src/renderer/src/__tests__/components/Layout.test.tsx" timestamp="2026-04-24T15:18:16.527Z" hostname="Mostrito" tests="1" failures="0" errors="0" skipped="0" time="0.0287734">
+        <testcase classname="src/renderer/src/__tests__/components/Layout.test.tsx" name="Layout &gt; renders shell with children and delegated components" time="0.0277253">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/components/NowPlayingBar.test.tsx" timestamp="2026-04-24T15:18:16.528Z" hostname="Mostrito" tests="4" failures="0" errors="0" skipped="0" time="0.0700692">
+        <testcase classname="src/renderer/src/__tests__/components/NowPlayingBar.test.tsx" name="NowPlayingBar &gt; renders stopped state and disabled transport" time="0.0428549">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/NowPlayingBar.test.tsx" name="NowPlayingBar &gt; renders playing state and triggers pause" time="0.0125826">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/NowPlayingBar.test.tsx" name="NowPlayingBar &gt; shows resume button in paused state" time="0.0060452">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/NowPlayingBar.test.tsx" name="NowPlayingBar &gt; renders ad break state and pause control" time="0.0069839">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/components/Sidebar.test.tsx" timestamp="2026-04-24T15:18:16.529Z" hostname="Mostrito" tests="3" failures="0" errors="0" skipped="0" time="0.0734575">
+        <testcase classname="src/renderer/src/__tests__/components/Sidebar.test.tsx" name="Sidebar &gt; renders all navigation items" time="0.0505425">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/Sidebar.test.tsx" name="Sidebar &gt; shows active profile name" time="0.0097102">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/Sidebar.test.tsx" name="Sidebar &gt; marks current route as active" time="0.0108959">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/components/SoundboardGrid.test.tsx" timestamp="2026-04-24T15:18:16.530Z" hostname="Mostrito" tests="4" failures="0" errors="0" skipped="0" time="0.0830522">
+        <testcase classname="src/renderer/src/__tests__/components/SoundboardGrid.test.tsx" name="SoundboardGrid &gt; calls assign when slot is empty" time="0.0437145">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/SoundboardGrid.test.tsx" name="SoundboardGrid &gt; calls trigger for assigned button and supports context assign" time="0.0187131">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/SoundboardGrid.test.tsx" name="SoundboardGrid &gt; toggles active slot for toggle mode and keeps label fallback" time="0.0148632">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/components/SoundboardGrid.test.tsx" name="SoundboardGrid &gt; renders dash fallback when label and audio name are missing" time="0.0041613">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/hooks/useAdBlocks.test.tsx" timestamp="2026-04-24T15:18:16.531Z" hostname="Mostrito" tests="3" failures="0" errors="0" skipped="0" time="0.1812753">
+        <testcase classname="src/renderer/src/__tests__/hooks/useAdBlocks.test.tsx" name="useAdBlocks &gt; does not load with null profile" time="0.0221229">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useAdBlocks.test.tsx" name="useAdBlocks &gt; loads blocks and rules" time="0.0776252">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useAdBlocks.test.tsx" name="useAdBlocks &gt; creates/removes blocks and rules" time="0.079629">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/hooks/usePlaylists.test.tsx" timestamp="2026-04-24T15:18:16.532Z" hostname="Mostrito" tests="3" failures="0" errors="0" skipped="0" time="0.1732702">
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlaylists.test.tsx" name="usePlaylists &gt; does not load when profile is null" time="0.0188707">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlaylists.test.tsx" name="usePlaylists &gt; loads playlists by profile" time="0.0735973">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlaylists.test.tsx" name="usePlaylists &gt; creates and removes playlist" time="0.0782272">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/hooks/usePlayout.test.tsx" timestamp="2026-04-24T15:18:16.532Z" hostname="Mostrito" tests="6" failures="0" errors="0" skipped="0" time="0.0774759">
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlayout.test.tsx" name="usePlayout &gt; subscribes and unsubscribes ipc events" time="0.0319798">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlayout.test.tsx" name="usePlayout &gt; updates state on state/ad events" time="0.0068854">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlayout.test.tsx" name="usePlayout &gt; plays track and handles onend/onloaderror" time="0.0223125">
+            <system-err>
+[usePlayout] onloaderror Track local-audio://localhost?p=C%3A%5Cmusic%5Csong.mp3 err
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlayout.test.tsx" name="usePlayout &gt; uses stream source path when sourceType is stream" time="0.0048713">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlayout.test.tsx" name="usePlayout &gt; start handles success and error branches" time="0.0055297">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePlayout.test.tsx" name="usePlayout &gt; transport controls delegate to service and howl" time="0.0034858">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" timestamp="2026-04-24T15:18:16.534Z" hostname="Mostrito" tests="8" failures="0" errors="0" skipped="0" time="0.6337221">
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; loads profiles and sets active default profile" time="0.1100232">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; sets error when load fails" time="0.0578492">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; falls back to first profile when no default is set" time="0.074344">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; sets active profile to null when list is empty" time="0.0774314">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; uses generic message when load throws non-Error" time="0.0766339">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; creates and appends a profile" time="0.0804873">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; selects profile and updates active state" time="0.0770211">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useProfiles.test.tsx" name="useProfiles &gt; removes active profile and clears active state" time="0.0773853">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/hooks/usePrograms.test.tsx" timestamp="2026-04-24T15:18:16.536Z" hostname="Mostrito" tests="2" failures="0" errors="0" skipped="0" time="0.1048678">
+        <testcase classname="src/renderer/src/__tests__/hooks/usePrograms.test.tsx" name="usePrograms &gt; does not load with null profile" time="0.0199473">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/usePrograms.test.tsx" name="usePrograms &gt; loads programs and handles create/update/remove" time="0.0830973">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/hooks/useSoundboard.test.tsx" timestamp="2026-04-24T15:18:16.536Z" hostname="Mostrito" tests="6" failures="0" errors="0" skipped="0" time="0.3903541">
+        <testcase classname="src/renderer/src/__tests__/hooks/useSoundboard.test.tsx" name="useSoundboard &gt; does not load with null profile" time="0.0260953">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useSoundboard.test.tsx" name="useSoundboard &gt; loads and assigns button" time="0.0681135">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useSoundboard.test.tsx" name="useSoundboard &gt; triggers oneshot and toggle-stop branch" time="0.0580014">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useSoundboard.test.tsx" name="useSoundboard &gt; handles trigger error silently" time="0.0749255">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useSoundboard.test.tsx" name="useSoundboard &gt; stops existing howl on non-toggle re-trigger" time="0.0776533">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/hooks/useSoundboard.test.tsx" name="useSoundboard &gt; uses stream source path when sourceType is stream" time="0.0831738">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/pages/AdBreaksPage.test.tsx" timestamp="2026-04-24T15:18:16.538Z" hostname="Mostrito" tests="5" failures="0" errors="0" skipped="0" time="0.0821398">
+        <testcase classname="src/renderer/src/__tests__/pages/AdBreaksPage.test.tsx" name="AdBreaksPage &gt; renders ad block list" time="0.049674">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/AdBreaksPage.test.tsx" name="AdBreaksPage &gt; shows &quot;▶ Disparar&quot; button per ad block" time="0.0045928">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/AdBreaksPage.test.tsx" name="AdBreaksPage &gt; calls triggerAdBlock on Disparar click and stops propagation" time="0.0123056">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/AdBreaksPage.test.tsx" name="AdBreaksPage &gt; calls removeBlock when ✕ is clicked" time="0.0082747">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/AdBreaksPage.test.tsx" name="AdBreaksPage &gt; shows empty state when there are no ad blocks" time="0.0054516">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/pages/IntegrationsPage.test.tsx" timestamp="2026-04-24T15:18:16.539Z" hostname="Mostrito" tests="3" failures="0" errors="0" skipped="0" time="0.124203">
+        <testcase classname="src/renderer/src/__tests__/pages/IntegrationsPage.test.tsx" name="IntegrationsPage &gt; renders the title" time="0.0733261">
+            <system-err>
+An update to IntegrationsPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() =&gt; {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you&apos;re testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to IntegrationsPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() =&gt; {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you&apos;re testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/IntegrationsPage.test.tsx" name="IntegrationsPage &gt; calls outputService.list with profileId on mount" time="0.0287674">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/IntegrationsPage.test.tsx" name="IntegrationsPage &gt; does not call outputService.list when profileId is null" time="0.0199101">
+            <system-err>
+An update to IntegrationsPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() =&gt; {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you&apos;re testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/pages/PlaylistsPage.test.tsx" timestamp="2026-04-24T15:18:16.540Z" hostname="Mostrito" tests="3" failures="0" errors="0" skipped="0" time="0.0821395">
+        <testcase classname="src/renderer/src/__tests__/pages/PlaylistsPage.test.tsx" name="PlaylistsPage &gt; renders without crashing and shows title" time="0.0564948">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/PlaylistsPage.test.tsx" name="PlaylistsPage &gt; renders existing playlist names" time="0.0139351">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/PlaylistsPage.test.tsx" name="PlaylistsPage &gt; renders without crashing when activeProfile is null" time="0.0091684">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/pages/PlayoutPage.test.tsx" timestamp="2026-04-24T15:18:16.541Z" hostname="Mostrito" tests="2" failures="0" errors="0" skipped="0" time="0.1736554">
+        <testcase classname="src/renderer/src/__tests__/pages/PlayoutPage.test.tsx" name="PlayoutPage &gt; renders the Playout title" time="0.1280824">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/PlayoutPage.test.tsx" name="PlayoutPage &gt; renders without crashing when activeProfile is null" time="0.0441131">
+            <system-err>
+An update to IntegrationsPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() =&gt; {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you&apos;re testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" timestamp="2026-04-24T15:18:16.541Z" hostname="Mostrito" tests="7" failures="0" errors="0" skipped="0" time="0.1543571">
+        <testcase classname="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" name="ProfilesPage &gt; renders title and existing profiles" time="0.0800429">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" name="ProfilesPage &gt; does not show Eliminar/Seleccionar for default profile" time="0.0059208">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" name="ProfilesPage &gt; shows Eliminar/Seleccionar for non-default profiles" time="0.0081381">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" name="ProfilesPage &gt; calls create when clicking + Crear with non-empty name" time="0.0277076">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" name="ProfilesPage &gt; does not call create with empty name" time="0.007096">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" name="ProfilesPage &gt; shows error message when create throws" time="0.0195101">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProfilesPage.test.tsx" name="ProfilesPage &gt; shows &quot;Sin perfiles&quot; when list is empty" time="0.0040779">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/pages/ProgramsPage.test.tsx" timestamp="2026-04-24T15:18:16.543Z" hostname="Mostrito" tests="5" failures="0" errors="0" skipped="0" time="0.237018">
+        <testcase classname="src/renderer/src/__tests__/pages/ProgramsPage.test.tsx" name="ProgramsPage &gt; renders title and weekly grid" time="0.0527581">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProgramsPage.test.tsx" name="ProgramsPage &gt; opens modal when clicking + Agregar" time="0.0277055">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProgramsPage.test.tsx" name="ProgramsPage &gt; shows error when submitting without name" time="0.0302297">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProgramsPage.test.tsx" name="ProgramsPage &gt; calls create with form values" time="0.1121417">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/ProgramsPage.test.tsx" name="ProgramsPage &gt; calls remove when clicking Eliminar on program" time="0.012204">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/pages/SoundboardPage.test.tsx" timestamp="2026-04-24T15:18:16.544Z" hostname="Mostrito" tests="6" failures="0" errors="0" skipped="0" time="0.0614536">
+        <testcase classname="src/renderer/src/__tests__/pages/SoundboardPage.test.tsx" name="SoundboardPage &gt; renders the grid component" time="0.0352608">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/SoundboardPage.test.tsx" name="SoundboardPage &gt; shows ⏸ Pausar when not paused" time="0.0066458">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/SoundboardPage.test.tsx" name="SoundboardPage &gt; shows ▶ Reanudar when paused" time="0.0029274">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/SoundboardPage.test.tsx" name="SoundboardPage &gt; calls stopAll when clicking Detener" time="0.007449">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/SoundboardPage.test.tsx" name="SoundboardPage &gt; calls pauseAll when clicking ⏸ Pausar" time="0.0041914">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/pages/SoundboardPage.test.tsx" name="SoundboardPage &gt; calls resumeAll when clicking ▶ Reanudar" time="0.0026745">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/services/adBlockService.test.ts" timestamp="2026-04-24T15:18:16.545Z" hostname="Mostrito" tests="2" failures="0" errors="0" skipped="0" time="0.0101801">
+        <testcase classname="src/renderer/src/__tests__/services/adBlockService.test.ts" name="adBlockService &gt; delegates ad blocks CRUD and items" time="0.0069375">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/adBlockService.test.ts" name="adBlockService &gt; delegates ad rules CRUD" time="0.0013921">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/services/outputService.test.ts" timestamp="2026-04-24T15:18:16.546Z" hostname="Mostrito" tests="1" failures="0" errors="0" skipped="0" time="0.0042334">
+        <testcase classname="src/renderer/src/__tests__/services/outputService.test.ts" name="outputService &gt; delegates all output methods" time="0.0032923">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/services/playlistService.test.ts" timestamp="2026-04-24T15:18:16.546Z" hostname="Mostrito" tests="8" failures="0" errors="0" skipped="0" time="0.013193">
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates list by profile id" time="0.005286">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates create with payload" time="0.0015044">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates update with id and data" time="0.0009541">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates remove by id" time="0.0007321">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates getWithItems by id" time="0.0007026">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates addItem with ordered payload" time="0.0007233">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates reorder with item ids" time="0.0008052">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/playlistService.test.ts" name="playlistService &gt; delegates removeItem by id" time="0.0005015">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/services/playoutService.test.ts" timestamp="2026-04-24T15:18:16.548Z" hostname="Mostrito" tests="1" failures="0" errors="0" skipped="0" time="0.0078849">
+        <testcase classname="src/renderer/src/__tests__/services/playoutService.test.ts" name="playoutService &gt; delegates all playout methods" time="0.0062576">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/services/profileService.test.ts" timestamp="2026-04-24T15:18:16.548Z" hostname="Mostrito" tests="5" failures="0" errors="0" skipped="0" time="0.0111364">
+        <testcase classname="src/renderer/src/__tests__/services/profileService.test.ts" name="profileService &gt; delegates list to electronAPI" time="0.0044018">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/profileService.test.ts" name="profileService &gt; delegates create with name payload" time="0.0031312">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/profileService.test.ts" name="profileService &gt; delegates update with id and payload" time="0.000713">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/profileService.test.ts" name="profileService &gt; delegates remove with profile id" time="0.0004812">
+        </testcase>
+        <testcase classname="src/renderer/src/__tests__/services/profileService.test.ts" name="profileService &gt; delegates select with profile id" time="0.0004647">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/services/programService.test.ts" timestamp="2026-04-24T15:18:16.550Z" hostname="Mostrito" tests="1" failures="0" errors="0" skipped="0" time="0.0045449">
+        <testcase classname="src/renderer/src/__tests__/services/programService.test.ts" name="programService &gt; delegates all program methods" time="0.00346">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/renderer/src/__tests__/services/soundboardService.test.ts" timestamp="2026-04-24T15:18:16.550Z" hostname="Mostrito" tests="1" failures="0" errors="0" skipped="0" time="0.004007">
+        <testcase classname="src/renderer/src/__tests__/services/soundboardService.test.ts" name="soundboardService &gt; delegates all soundboard methods" time="0.0030759">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/adBlocks.ipc.test.ts" timestamp="2026-04-24T15:18:16.550Z" hostname="Mostrito" tests="10" failures="0" errors="0" skipped="0" time="0.0894196">
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; registers all expected handlers" time="0.0078197">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-block:list &gt; queries by profileId with includes and orderBy name asc" time="0.0083493">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-block:create &gt; creates a block with given data" time="0.010611">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-block:trigger &gt; returns block when found" time="0.0240408">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-block:trigger &gt; throws when block not found" time="0.0073982">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-rule:create &gt; throws when missing required fields" time="0.0049436">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-rule:create &gt; rejects duplicate time rule" time="0.0046006">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-rule:create &gt; creates rule when not duplicate" time="0.004998">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-rule:create &gt; creates non-time rule without duplicate check" time="0.0044329">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/adBlocks.ipc.test.ts" name="adBlocks.ipc &gt; ad-rule:delete &gt; deletes and returns success" time="0.0081825">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/audioAssets.ipc.test.ts" timestamp="2026-04-24T15:18:16.552Z" hostname="Mostrito" tests="6" failures="0" errors="0" skipped="0" time="0.0366828">
+        <testcase classname="src/main/__tests__/ipc/audioAssets.ipc.test.ts" name="audioAssets.ipc &gt; registers all expected handlers" time="0.005847">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/audioAssets.ipc.test.ts" name="audioAssets.ipc &gt; audio-asset:list &gt; returns assets ordered by name asc" time="0.0072202">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/audioAssets.ipc.test.ts" name="audioAssets.ipc &gt; audio-asset:import &gt; creates asset deriving name from filename" time="0.0036181">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/audioAssets.ipc.test.ts" name="audioAssets.ipc &gt; audio-asset:import-batch &gt; imports multiple files in order" time="0.0054517">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/audioAssets.ipc.test.ts" name="audioAssets.ipc &gt; audio-asset:import-batch &gt; returns empty array for empty input" time="0.0065663">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/audioAssets.ipc.test.ts" name="audioAssets.ipc &gt; audio-asset:delete &gt; returns success" time="0.0040986">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/outputs.ipc.test.ts" timestamp="2026-04-24T15:18:16.553Z" hostname="Mostrito" tests="9" failures="0" errors="0" skipped="0" time="0.0387673">
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; registers all expected handlers" time="0.005128">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:save &gt; updates existing output (upsert by profileId+outputType)" time="0.0055955">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:save &gt; creates a new output when none exists" time="0.0030131">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:toggle &gt; disconnects streaming when disabling non-local output" time="0.0028647">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:toggle &gt; does NOT disconnect for local output" time="0.0029353">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:toggle &gt; does NOT disconnect when enabling" time="0.0029039">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:test &gt; returns success directly for local outputs" time="0.0046275">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:test &gt; delegates to streamingService for non-local outputs" time="0.0034861">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/outputs.ipc.test.ts" name="outputs.ipc &gt; output:test &gt; throws when output not found" time="0.005808">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/playlists.ipc.test.ts" timestamp="2026-04-24T15:18:16.555Z" hostname="Mostrito" tests="6" failures="0" errors="0" skipped="0" time="0.0324549">
+        <testcase classname="src/main/__tests__/ipc/playlists.ipc.test.ts" name="playlists.ipc &gt; registers all expected handlers" time="0.0048851">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playlists.ipc.test.ts" name="playlists.ipc &gt; playlist:reorder &gt; updates positions when all items belong to playlist" time="0.0069086">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playlists.ipc.test.ts" name="playlists.ipc &gt; playlist:reorder &gt; rejects when some items do not belong to playlist (security)" time="0.0055033">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playlists.ipc.test.ts" name="playlists.ipc &gt; playlist:create &gt; creates a playlist with given data" time="0.0042153">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playlists.ipc.test.ts" name="playlists.ipc &gt; playlist:add-item &gt; creates an item with playlistId, audioAssetId, position" time="0.0043879">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playlists.ipc.test.ts" name="playlists.ipc &gt; playlist:delete &gt; returns success" time="0.0042839">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/playout.ipc.test.ts" timestamp="2026-04-24T15:18:16.556Z" hostname="Mostrito" tests="10" failures="0" errors="0" skipped="0" time="0.0764243">
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; registers all playout handlers" time="0.0056478">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout:start &gt; lazily creates PlayoutService and starts with defaults" time="0.0055531">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout:start &gt; passes through playlistId and startIndex" time="0.003553">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout:start &gt; defaults startIndex to 0 when undefined" time="0.003242">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout:status &gt; returns stopped placeholder when service not initialized" time="0.0070508">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout:stream-chunk &gt; forwards ArrayBuffer to streamingService.pushChunk as Buffer" time="0.0034299">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout transport handlers &gt; stop returns success" time="0.0041899">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout transport handlers &gt; pause/resume/next/prev/jump-to/ad-end-ack return success" time="0.0288604">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout transport handlers &gt; trigger-ad delegates to triggerAdBlock" time="0.0058253">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/playout.ipc.test.ts" name="playout.ipc &gt; playout transport handlers &gt; sync-program delegates with profileId and playlistId" time="0.006206">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/profiles.ipc.test.ts" timestamp="2026-04-24T15:18:16.558Z" hostname="Mostrito" tests="9" failures="0" errors="0" skipped="0" time="0.0430127">
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; registers all expected handlers" time="0.0053562">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:list &gt; returns profiles ordered by createdAt asc" time="0.0063812">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:create &gt; creates a new profile when name is unique" time="0.0030692">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:create &gt; throws when name already exists" time="0.0048874">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:update &gt; clears other defaults when isDefault=true" time="0.0052993">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:update &gt; does NOT clear defaults when isDefault is not set" time="0.0034309">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:delete &gt; deletes a non-default profile" time="0.0040586">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:delete &gt; throws when trying to delete the default profile" time="0.0037989">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/profiles.ipc.test.ts" name="profiles.ipc &gt; profile:select &gt; clears all defaults then sets selected as default" time="0.0041861">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/programs.ipc.test.ts" timestamp="2026-04-24T15:18:16.559Z" hostname="Mostrito" tests="5" failures="0" errors="0" skipped="0" time="0.0346875">
+        <testcase classname="src/main/__tests__/ipc/programs.ipc.test.ts" name="programs.ipc &gt; registers all expected handlers" time="0.0055417">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/programs.ipc.test.ts" name="programs.ipc &gt; program:create &gt; creates when there is no overlap" time="0.006867">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/programs.ipc.test.ts" name="programs.ipc &gt; program:create &gt; throws on time overlap with informative message" time="0.0059772">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/programs.ipc.test.ts" name="programs.ipc &gt; program:list &gt; orders by dayOfWeek asc then startTime asc" time="0.00942">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/programs.ipc.test.ts" name="programs.ipc &gt; program:delete &gt; returns success" time="0.0045925">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/ipc/soundboard.ipc.test.ts" timestamp="2026-04-24T15:18:16.560Z" hostname="Mostrito" tests="8" failures="0" errors="0" skipped="0" time="0.0449102">
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; registers all expected handlers" time="0.005715">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; soundboard:get &gt; returns 16 slots, filling missing with defaults" time="0.0050759">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; soundboard:assign &gt; rejects slot index &lt; 1" time="0.0056984">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; soundboard:assign &gt; rejects slot index &gt; 16" time="0.0032349">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; soundboard:assign &gt; upserts on composite (profileId, slotIndex)" time="0.0108991">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; soundboard:trigger &gt; returns slot info when audio is assigned" time="0.0036966">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; soundboard:trigger &gt; throws when slot has no audio" time="0.0041383">
+        </testcase>
+        <testcase classname="src/main/__tests__/ipc/soundboard.ipc.test.ts" name="soundboard.ipc &gt; soundboard:trigger &gt; throws when audioAsset is null" time="0.003897">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/services/playoutService.test.ts" timestamp="2026-04-24T15:18:16.562Z" hostname="Mostrito" tests="17" failures="0" errors="0" skipped="0" time="0.1613885">
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; start &gt; loads queue from a specific playlist when playlistId provided" time="0.0134884">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; start &gt; falls back to resolving current playlist when no playlistId given" time="0.0045019">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; start &gt; clamps startIndex within bounds" time="0.00372">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; start &gt; emits playout:state-changed and playout:track-changed" time="0.025343">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; pause/resume &gt; pauses when playing" time="0.0050267">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; pause/resume &gt; does not pause when stopped" time="0.0056919">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; pause/resume &gt; resumes from paused" time="0.0047091">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; jumpTo &gt; moves to specified index" time="0.0042516">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; jumpTo &gt; clamps negative to 0" time="0.0040363">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; jumpTo &gt; clamps above length to last" time="0.0049525">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; jumpTo &gt; is a no-op when queue is empty" time="0.0063153">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; next &gt; advances to next track" time="0.0056178">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; next &gt; stops when reaching end of queue" time="0.0221149">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; triggerAdBlock &gt; emits playout:ad-start and changes state" time="0.0104492">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; triggerAdBlock &gt; throws when ad block not found" time="0.0119674">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; adBreakEnd &gt; returns to playing when previous state was playing" time="0.0115819">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/playoutService.test.ts" name="PlayoutService &gt; stop &gt; clears queue and records playoutEvent" time="0.0120463">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/services/schedulerService.test.ts" timestamp="2026-04-24T15:18:16.565Z" hostname="Mostrito" tests="8" failures="0" errors="0" skipped="0" time="0.0465538">
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; start/stop &gt; schedules a cron task on start" time="0.0088595">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; start/stop &gt; stops scheduled tasks" time="0.0038749">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; getActiveProgram &gt; queries by current day and time" time="0.0051188">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; tick (via cron callback) &gt; emits scheduler:program-changed with active program" time="0.0063225">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; tick (via cron callback) &gt; emits __general__ context when no active program" time="0.0055873">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; tick (via cron callback) &gt; does NOT re-emit when context.id has not changed" time="0.0048273">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; tick (via cron callback) &gt; emits again when context changes between ticks" time="0.0037402">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/schedulerService.test.ts" name="SchedulerService &gt; tick (via cron callback) &gt; swallows errors gracefully" time="0.00543">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/main/__tests__/services/streamingService.test.ts" timestamp="2026-04-24T15:18:16.566Z" hostname="Mostrito" tests="9" failures="0" errors="0" skipped="0" time="0.0175075">
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; pushChunk &gt; does nothing when no connections exist" time="0.0032088">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; pushChunk &gt; writes only to active connections with writable sockets" time="0.0034369">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; testConnection &gt; resolves success when socket connects" time="0.0010676">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; testConnection &gt; resolves with error message on socket error" time="0.0006405">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; testConnection &gt; resolves with timeout message on timeout" time="0.0006123">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; disconnect &gt; clears the connection from the map" time="0.0033738">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; disconnect &gt; clears reconnect timer if present" time="0.0014039">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; disconnect &gt; is a no-op when id does not exist" time="0.0007549">
+        </testcase>
+        <testcase classname="src/main/__tests__/services/streamingService.test.ts" name="StreamingService &gt; disconnectAll &gt; disconnects every registered connection" time="0.0006644">
+        </testcase>
+    </testsuite>
+</testsuites>

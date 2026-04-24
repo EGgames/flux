@@ -6,7 +6,7 @@ export const soundboardService = {
     data: {
       audioAssetId?: string | null
       label?: string
-      mode?: string
+      mode?: 'oneshot' | 'toggle' | 'loop'
       color?: string
     }
   ) => window.electronAPI.soundboard.assign(profileId, slotIndex, data),

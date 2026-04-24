@@ -16,6 +16,15 @@ interface EqualizerState {
   high: number
 }
 
+export interface PlayoutLogEntry {
+  id: string
+  timestamp: number  // ms epoch — la hora se formatea en la UI con toLocaleTimeString()
+  level: 'info' | 'warn' | 'error'
+  message: string
+}
+
+const MAX_LOG_ENTRIES = 500
+
 interface TimeRule {
   dayOfWeek: number
   time: string
@@ -80,17 +89,33 @@ export function usePlayout() {
     songsSinceLastAd: 0
   })
   const [error, setError] = useState<string | null>(null)
+  const [logs, setLogs] = useState<PlayoutLogEntry[]>([])
+  const appendLog = useCallback((level: PlayoutLogEntry['level'], message: string) => {
+    setLogs((prev) => {
+      const entry: PlayoutLogEntry = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        level,
+        message
+      }
+      const next = [...prev, entry]
+      return next.length > MAX_LOG_ENTRIES ? next.slice(next.length - MAX_LOG_ENTRIES) : next
+    })
+  }, [])
+  const clearLogs = useCallback(() => setLogs([]), [])
   const [equalizer, setEqualizer] = useState<EqualizerState>({
     enabled: true,
     low: 0,
     mid: 0,
     high: 0
   })
+  const eqEnabledRef = useRef(true)
   const [nextAdCountdownSec, setNextAdCountdownSec] = useState<number | null>(null)
   const [nextAdLabel, setNextAdLabel] = useState<string>('Sin tanda programada')
   const [adBreakElapsedSec, setAdBreakElapsedSec] = useState(0)
   const [adBreakRemainingSec, setAdBreakRemainingSec] = useState<number | null>(null)
   const [adBreakName, setAdBreakName] = useState<string | null>(null)
+  const [pendingAdBlock, setPendingAdBlock] = useState<{ id: string; name: string } | null>(null)
   const [currentSec, setCurrentSec] = useState(0)
   const [durationSec, setDurationSec] = useState(0)
   const [queue, setQueue] = useState<Array<{ id: string; name: string; durationMs: number | null }>>([])  
@@ -105,6 +130,7 @@ export function usePlayout() {
   const monitorSinkDeviceIdRef = useRef<string | null>(null)
   const eqCtxRef = useRef<AudioContext | null>(null)
   const eqSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
+  const eqCapturedNodeRef = useRef<HTMLAudioElement | null>(null)
   const eqNodesRef = useRef<{
     low: BiquadFilterNode
     mid: BiquadFilterNode
@@ -124,7 +150,16 @@ export function usePlayout() {
   // Ensure the filter chain exists (called lazily on first play)
   const ensureEqChain = useCallback(() => {
     if (!eqCtxRef.current) {
-      eqCtxRef.current = new AudioContext()
+      // Use AudioContext sinkId option (Chromium 110+) so EQ-routed audio reaches the same
+      // device the howl was sent to. Falls back to default sink if not supported.
+      const sinkId = sinkDeviceIdRef.current
+      try {
+        eqCtxRef.current = sinkId
+          ? new (AudioContext as unknown as new (opts: { sinkId: string }) => AudioContext)({ sinkId })
+          : new AudioContext()
+      } catch {
+        eqCtxRef.current = new AudioContext()
+      }
     }
     const ctx = eqCtxRef.current
     if (eqNodesRef.current) return
@@ -148,6 +183,16 @@ export function usePlayout() {
     eqNodesRef.current = { low, mid, high }
   }, [])
 
+  // Keep the EQ AudioContext routed to the current sink device when it changes
+  const updateEqSink = useCallback(async () => {
+    const ctx = eqCtxRef.current
+    const sinkId = sinkDeviceIdRef.current
+    if (!ctx || !sinkId) return
+    const ctxAny = ctx as unknown as { setSinkId?: (id: string) => Promise<void>; sinkId?: string }
+    if (ctxAny.sinkId === sinkId) return
+    try { await ctxAny.setSinkId?.(sinkId) } catch { /* unsupported */ }
+  }, [])
+
   // Connect a Howl's <audio> element through the EQ filter chain
   const connectHowlToEq = useCallback((howl: Howl) => {
     ensureEqChain()
@@ -155,32 +200,48 @@ export function usePlayout() {
     const nodes = eqNodesRef.current
     if (!ctx || !nodes) return
 
-    // Disconnect previous source
-    try { eqSourceRef.current?.disconnect() } catch { /* no-op */ }
-    eqSourceRef.current = null
-
     const sounds = (howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement }> })._sounds
     const audioEl = sounds?.[0]?._node as HTMLAudioElement | undefined
     if (!audioEl) return
+
+    // If this exact element is already captured, skip to avoid currentTime reset
+    if (eqCapturedNodeRef.current === audioEl) {
+      if (ctx.state === 'suspended') void ctx.resume()
+      void updateEqSink()
+      return
+    }
+
+    // New audio element — disconnect previous source first
+    try { eqSourceRef.current?.disconnect() } catch { /* no-op */ }
+    eqSourceRef.current = null
+    eqCapturedNodeRef.current = null
 
     try {
       const source = ctx.createMediaElementSource(audioEl)
       source.connect(nodes.low)
       eqSourceRef.current = source
+      eqCapturedNodeRef.current = audioEl
       if (ctx.state === 'suspended') void ctx.resume()
+      void updateEqSink()
     } catch {
-      // createMediaElementSource may throw if element is already captured
+      // Already captured by another context — mark as captured to avoid retrying
+      eqCapturedNodeRef.current = audioEl
     }
-  }, [ensureEqChain])
+  }, [ensureEqChain, updateEqSink])
 
   useEffect(() => {
+    eqEnabledRef.current = equalizer.enabled
     const nodes = eqNodesRef.current
-    if (!nodes) return
-
+    const ctx = eqCtxRef.current
+    if (!nodes || !ctx) return
+    // Smooth ramping (50ms) avoids clicks/pops. EQ is always pre-routed at track start;
+    // toggling enabled just changes the gain values, no reroute, no glitch.
+    const now = ctx.currentTime
+    const ramp = 0.05
     const multiplier = equalizer.enabled ? 1 : 0
-    nodes.low.gain.value = equalizer.low * multiplier
-    nodes.mid.gain.value = equalizer.mid * multiplier
-    nodes.high.gain.value = equalizer.high * multiplier
+    nodes.low.gain.setTargetAtTime(equalizer.low * multiplier, now, ramp)
+    nodes.mid.gain.setTargetAtTime(equalizer.mid * multiplier, now, ramp)
+    nodes.high.gain.setTargetAtTime(equalizer.high * multiplier, now, ramp)
   }, [equalizer])
 
   const applySinkToHowl = useCallback(async (howl: Howl) => {
@@ -283,7 +344,11 @@ export function usePlayout() {
     howlRef.current?.unload()
     monitorHowlRef.current?.unload()
     setCurrentSec(0)
-    setDurationSec(0)
+    // Prefer the DB-probed duration (accurate for VBR MP3) over Howler's HTML5 estimate,
+    // which often underestimates by 10-30 s and made the progress bar reach 100 % too early.
+    const probedSec =
+      track.durationMs && track.durationMs > 0 ? Math.floor(track.durationMs / 1000) : 0
+    setDurationSec(probedSec)
     const src =
       track.sourceType === 'local'
         ? (() => {
@@ -302,26 +367,39 @@ export function usePlayout() {
       onload: () => {
         const dur = howl.duration()
         if (typeof dur === 'number' && dur > 0 && isFinite(dur)) {
-          setDurationSec(Math.floor(dur))
+          // Only upgrade duration if the audio element reports a larger value than the
+          // probed one. Never shrink: HTML5 audio under-reports VBR MP3 durations.
+          setDurationSec((prev) => Math.max(prev, Math.floor(dur)))
         }
       },
       onplay: () => {
         void applySinkToHowl(howl)
+        // Always pre-route through the EQ chain at track start (audio is silent
+        // at this moment, no glitch). The 'enabled' state just controls gain values.
         connectHowlToEq(howl)
         // Re-read duration on play in case onload fired before metadata was ready
         const dur = howl.duration()
         if (typeof dur === 'number' && dur > 0 && isFinite(dur)) {
-          setDurationSec(Math.floor(dur))
+          setDurationSec((prev) => Math.max(prev, Math.floor(dur)))
         }
       },
       onend: () => {
-        setCurrentSec(0)
+        // Snap the bar to 100 % so it visually completes; the next track will reset it.
+        setCurrentSec((prev) => Math.max(prev, probedSec))
         window.electronAPI.playout.next()
       },
       onloaderror: (_id: number, err: unknown) => {
         console.error('[usePlayout] onloaderror', track.name, src, err)
         setError(`No se pudo cargar: ${track.name} — ${String(err)}`)
+        appendLog('error', `Error al cargar: ${track.name} — ${String(err)}`)
         window.electronAPI.playout.next()
+      },
+      onplayerror: (_id: number, err: unknown) => {
+        console.warn('[usePlayout] onplayerror', track.name, err)
+        appendLog('warn', `Reintentando reproducción: ${track.name}`)
+        try {
+          howl.once('unlock', () => { try { howl.play() } catch { /* no-op */ } })
+        } catch { /* no-op */ }
       }
     })
     howl.play()
@@ -345,10 +423,18 @@ export function usePlayout() {
     }
   }, [applySinkToHowl, applyMonitorSinkToHowl, connectHowlToEq])
 
+  const isAdBreakRef = useRef(false)
+
   useEffect(() => {
-    // Listen for state changes from Main Process
     const onStateChanged = (data: { state: PlayoutStatus['state'] }) => {
       setStatus((prev) => ({ ...prev, state: data.state }))
+      const labels: Record<PlayoutStatus['state'], string> = {
+        stopped: 'Reproducción detenida',
+        playing: 'Reproducción iniciada',
+        paused: 'Reproducción en pausa',
+        ad_break: 'Tanda publicitaria iniciada'
+      }
+      appendLog('info', labels[data.state] ?? `Estado: ${data.state}`)
     }
     const onTrackChanged = (data: { track: AudioAsset; queueIndex?: number; queueLength?: number }) => {
       setStatus((prev) => ({
@@ -357,15 +443,35 @@ export function usePlayout() {
         ...(data.queueIndex !== undefined ? { queueIndex: data.queueIndex } : {}),
         ...(data.queueLength !== undefined ? { queueLength: data.queueLength } : {})
       }))
+      // Don't start new music while an ad break is active
+      if (isAdBreakRef.current) {
+        transitionRef.current = { fadeInMs: 0, fadeOutMs: 0 }
+        return
+      }
+      // Dedupe: if the same track is already loaded (e.g. duplicate track-changed events
+      // from scheduler syncProgram or React StrictMode dual-mount), don't reload — that
+      // would unload the current howl and restart playback from 0.
+      const currentTrackId = statusRef.current.track?.id
+      if (currentTrackId === data.track.id && howlRef.current) {
+        transitionRef.current = { fadeInMs: 0, fadeOutMs: 0 }
+        return
+      }
+      appendLog('info', `Audio: ${data.track.name}`)
       playTrack(data.track, transitionRef.current.fadeInMs)
       transitionRef.current = { fadeInMs: 0, fadeOutMs: 0 }
     }
     const onAdStart = async (rawData: unknown) => {
+      // Guard against duplicate calls (React StrictMode double-mount)
+      if (isAdBreakRef.current) return
+      isAdBreakRef.current = true
+
       const data = rawData as {
         block: { id: string; name: string; items?: Array<{ audioAsset?: AudioAsset | null }> }
       }
       setStatus((prev) => ({ ...prev, state: 'ad_break' }))
       setAdBreakName(data.block.name)
+      appendLog('info', `Tanda iniciada: ${data.block.name}`)
+      setPendingAdBlock(null)  // clear pending notice once ad actually starts
       adBreakStartedAtRef.current = Date.now()
       const items = data.block.items ?? []
       const totalMs = items.reduce((sum, item) => sum + (item.audioAsset?.durationMs ?? 0), 0)
@@ -373,17 +479,26 @@ export function usePlayout() {
       setAdBreakElapsedSec(0)
       setAdBreakRemainingSec(adBreakTotalSecRef.current)
 
-      // Fade out and stop current music
+      // Fade out and stop current music — do NOT rely on howl.playing()
+      // because in html5+EQ mode Howler reports playing()=false even while audio is running
       const currentHowl = howlRef.current
-      if (currentHowl?.playing()) {
-        currentHowl.fade(currentHowl.volume(), 0, 600)
-        await new Promise<void>((res) => window.setTimeout(res, 650))
-        currentHowl.stop()
-      }
-      howlRef.current?.unload()
-      howlRef.current = null
+      howlRef.current = null  // claim ref early to prevent races
+      monitorHowlRef.current?.stop()
       monitorHowlRef.current?.unload()
       monitorHowlRef.current = null
+      if (currentHowl) {
+        try {
+          currentHowl.fade(currentHowl.volume(), 0, 600)
+          await new Promise<void>((res) => window.setTimeout(res, 650))
+        } catch { /* fade may fail in EQ mode, continue anyway */ }
+        currentHowl.stop()
+        currentHowl.unload()
+      }
+      // Also force-pause the raw audio element captured by AudioContext (EQ workaround)
+      const capturedEl = eqCapturedNodeRef.current
+      if (capturedEl && !capturedEl.paused) {
+        try { capturedEl.pause() } catch { /* no-op */ }
+      }
 
       // Play each ad audio asset in sequence
       const assets = items
@@ -421,6 +536,7 @@ export function usePlayout() {
       // Clean up ad break refs before notifying main
       adBreakStartedAtRef.current = null
       adBreakTotalSecRef.current = null
+      isAdBreakRef.current = false
 
       // Signal main process that ad break is done
       try {
@@ -465,12 +581,20 @@ export function usePlayout() {
       adBreakTotalSecRef.current = null
       setAdBreakElapsedSec(0)
       setAdBreakRemainingSec(null)
+      appendLog('info', 'Tanda finalizada')
+    }
+
+    const onAdPending = (data: unknown) => {
+      const d = data as { adBlockId: string; name: string }
+      setPendingAdBlock({ id: d.adBlockId, name: d.name })
+      appendLog('info', `Tanda programada: ${d.name}`)
     }
 
     window.electronAPI.on('playout:state-changed', onStateChanged as (...args: unknown[]) => void)
     window.electronAPI.on('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
     window.electronAPI.on('playout:ad-start', onAdStart as (...args: unknown[]) => void)
     window.electronAPI.on('playout:ad-end', onAdEnd as (...args: unknown[]) => void)
+    window.electronAPI.on('playout:ad-pending', onAdPending as (...args: unknown[]) => void)
     window.electronAPI.on('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
     window.electronAPI.on('playout:queue-update', onQueueUpdate as (...args: unknown[]) => void)
 
@@ -479,6 +603,7 @@ export function usePlayout() {
       window.electronAPI.off('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
       window.electronAPI.off('playout:ad-start', onAdStart as (...args: unknown[]) => void)
       window.electronAPI.off('playout:ad-end', onAdEnd as (...args: unknown[]) => void)
+      window.electronAPI.off('playout:ad-pending', onAdPending as (...args: unknown[]) => void)
       window.electronAPI.off('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
       window.electronAPI.off('playout:queue-update', onQueueUpdate as (...args: unknown[]) => void)
     }
@@ -518,9 +643,24 @@ export function usePlayout() {
       }
 
       // Actualizar posición del track actual
-      if (howlRef.current?.playing()) {
-        const pos = howlRef.current.seek()
-        if (typeof pos === 'number') setCurrentSec(Math.floor(pos))
+      // Leer directamente del <audio> para no depender de playing() de Howler,
+      // que puede devolver false cuando el elemento fue capturado por AudioContext.
+      if (howlRef.current && currentStatus.state === 'playing') {
+        const sounds = (howlRef.current as unknown as { _sounds?: Array<{ _node?: HTMLAudioElement }> })._sounds
+        const audioEl = sounds?.[0]?._node
+        if (audioEl) {
+          // Promote duration if the element finally knows a larger value than what we have.
+          const elDur = audioEl.duration
+          if (typeof elDur === 'number' && isFinite(elDur) && elDur > 0) {
+            setDurationSec((prev) => Math.max(prev, Math.floor(elDur)))
+          }
+          if (audioEl.ended) {
+            // Audio finished but onend may not have fired yet — keep the bar at the end.
+            setCurrentSec((prev) => Math.max(prev, Math.floor(audioEl.duration || prev)))
+          } else {
+            setCurrentSec(Math.floor(audioEl.currentTime))
+          }
+        }
       }
     }, 1000)
 
@@ -588,6 +728,19 @@ export function usePlayout() {
     await playoutService.triggerAdBlock(adBlockId)
   }, [])
 
+  const changePlaylist = useCallback(async (profileId: string, playlistId: string | null) => {
+    const currentHowl = howlRef.current
+    if (currentHowl?.playing()) {
+      currentHowl.fade(currentHowl.volume(), 0, 800)
+      await new Promise<void>((res) => window.setTimeout(res, 850))
+      currentHowl.stop()
+    }
+    monitorHowlRef.current?.stop()
+    setCurrentSec(0)
+    setDurationSec(0)
+    await playoutService.syncProgram(profileId, playlistId)
+  }, [])
+
   const setEqualizerBand = useCallback((band: 'low' | 'mid' | 'high', value: number) => {
     setEqualizer((prev) => ({ ...prev, [band]: value }))
   }, [])
@@ -603,7 +756,7 @@ export function usePlayout() {
   }, [])
 
   const resetEqualizer = useCallback(() => {
-    setEqualizer({ enabled: true, low: 0, mid: 0, high: 0 })
+    setEqualizer((prev) => ({ enabled: prev.enabled, low: 0, mid: 0, high: 0 }))
   }, [])
 
   return {
@@ -621,11 +774,13 @@ export function usePlayout() {
     currentSec,
     durationSec,
     triggerAdBlock,
+    changePlaylist,
     adBreakTimer: {
       name: adBreakName,
       elapsedLabel: formatHms(adBreakElapsedSec),
       remainingLabel: adBreakRemainingSec !== null ? formatHms(adBreakRemainingSec) : '—'
     },
+    pendingAdBlock,
     nextAd: {
       countdownLabel: nextAdCountdownSec !== null ? formatHms(nextAdCountdownSec) : '—',
       atLabel: nextAdLabel
@@ -635,6 +790,8 @@ export function usePlayout() {
     toggleEqualizer,
     resetEqualizer,
     volume,
-    setVolume
+    setVolume,
+    logs,
+    clearLogs
   }
 }

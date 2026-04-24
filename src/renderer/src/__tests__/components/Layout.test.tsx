@@ -16,7 +16,7 @@ describe('Layout', () => {
       <Layout
         activeProfile={null}
         playoutStatus={{ state: 'stopped', profileId: null, track: null, queueIndex: 0, queueLength: 0, songsSinceLastAd: 0 }}
-        playoutControls={{ pause: vi.fn(), resume: vi.fn(), next: vi.fn(), stop: vi.fn() }}
+        playoutControls={{ pause: vi.fn(), resume: vi.fn(), prev: vi.fn(), next: vi.fn(), stop: vi.fn(), volume: 1, setVolume: vi.fn() }}
       >
         <div>content body</div>
       </Layout>

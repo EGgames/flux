@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Profile } from '../../types/ipc.types'
+import type { PlayoutLogEntry } from '../../hooks/usePlayout'
 import { usePlaylists } from '../../hooks/usePlaylists'
 import { usePrograms } from '../../hooks/usePrograms'
 import { useSoundboard } from '../../hooks/useSoundboard'
@@ -31,7 +32,9 @@ interface Props {
     resume: () => void
     prev: () => void
     next: () => void
+    jumpTo: (index: number) => void
     seek: (sec: number) => void
+    changePlaylist: (profileId: string, playlistId: string | null) => Promise<void>
     currentSec: number
     durationSec: number
     adBreakTimer: {
@@ -52,6 +55,9 @@ interface Props {
     setEqualizerBand: (band: 'low' | 'mid' | 'high', value: number) => void
     toggleEqualizer: (enabled: boolean) => void
     resetEqualizer: () => void
+    pendingAdBlock: { id: string; name: string } | null
+    logs: PlayoutLogEntry[]
+    clearLogs: () => void
   }
 }
 
@@ -76,6 +82,12 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
   const [layoutProgramId, setLayoutProgramId] = useState<string>('')
   const { layout, saveLayout, workspaceHeight, saveWorkspaceHeight } = useWorkspaceLayout(activeProfile, 'playout-workspace', layoutProgramId || '__default')
   const { status, error, start, stop, prev, next, jumpTo } = playout
+
+  const handleChangePlaylist = useCallback(() => {
+    if (!activeProfile) return
+    const playlistId = selectedPlaylistId || null
+    playout.changePlaylist(activeProfile.id, playlistId)
+  }, [activeProfile, selectedPlaylistId, playout])
 
   const { buttons: sbButtons, assign: sbAssign, trigger: sbTrigger, stopAll: sbStop, pauseAll: sbPause, resumeAll: sbResume, isPaused: sbPaused, gridResetKey: sbResetKey } = useSoundboard(activeProfile?.id ?? null)
   const [sbAssignSlot, setSbAssignSlot] = useState<number | null>(null)
@@ -141,7 +153,6 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
               className={`${styles.select}`}
               value={selectedPlaylistId}
               onChange={(e) => setSelectedPlaylistId(e.target.value)}
-              disabled={isActive}
             >
               <option value="">— Programa activo —</option>
               {playlists.map((pl) => (
@@ -155,6 +166,15 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
               </button>
             ) : (
               <>
+                {selectedPlaylistId && (
+                  <button
+                    className={styles.btnPrimary}
+                    onClick={handleChangePlaylist}
+                    title="Cambiar a esta lista con fade"
+                  >
+                    ↪ Cambiar
+                  </button>
+                )}
                 <button className={styles.btnSecondary} onClick={stop}>
                   ⏹ Detener
                 </button>
@@ -188,7 +208,6 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
               className={styles.select}
               value={generalPlaylistId}
               onChange={(e) => saveGeneralPlaylist(e.target.value)}
-              disabled={isActive}
             >
               <option value="">— Ninguna —</option>
               {playlists.map((pl) => (
@@ -196,6 +215,24 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
               ))}
             </select>
           </div>
+          {programs.length === 0 && !generalPlaylistId && (
+            <div className={styles.noProgramsNotice}>
+              <span className={styles.noProgramsIcon}>ℹ</span>
+              <span>No hay programas en la grilla. Seleccioná una <strong>lista general</strong> arriba para mantener el aire.</span>
+            </div>
+          )}
+          {programs.length === 0 && generalPlaylistId && (
+            <div className={`${styles.noProgramsNotice} ${styles.noProgramsNoticeOk}`}>
+              <span className={styles.noProgramsIcon}>✓</span>
+              <span>Sin programas activos — se usará la <strong>lista general</strong>.</span>
+            </div>
+          )}
+          {playout.pendingAdBlock && (
+            <div className={`${styles.noProgramsNotice} ${styles.noProgramsNoticeWarn}`}>
+              <span className={styles.noProgramsIcon}>🔔</span>
+              <span>Tanda <strong>{playout.pendingAdBlock.name}</strong> saldrá al terminar el tema actual.</span>
+            </div>
+          )}
         </div>
       )
     },
@@ -413,10 +450,43 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
       minH: 240,
       defaultRect: { x: 644, y: 950, w: 400, h: 300 },
       content: <ProfilesPage profiles={profiles} />
+    },
+    {
+      id: 'logs',
+      title: 'Registro de actividad',
+      minW: 360,
+      minH: 240,
+      defaultRect: { x: 1056, y: 950, w: 460, h: 320 },
+      content: (
+        <div className={styles.logsPanel}>
+          <div className={styles.logsToolbar}>
+            <span className={styles.logsCount}>{playout.logs.length} eventos</span>
+            <button
+              className={styles.btnSecondary}
+              onClick={playout.clearLogs}
+              disabled={playout.logs.length === 0}
+            >Limpiar</button>
+          </div>
+          <div className={styles.logsList} role="log" aria-live="polite">
+            {playout.logs.length === 0 && (
+              <div className={styles.logsEmpty}>Sin eventos todavía.</div>
+            )}
+            {playout.logs.slice().reverse().map((entry) => (
+              <div key={entry.id} className={`${styles.logsItem} ${styles[`logsItem_${entry.level}`] ?? ''}`}>
+                <span className={styles.logsTime}>
+                  {new Date(entry.timestamp).toLocaleTimeString('es-AR', { hour12: false })}
+                </span>
+                <span className={styles.logsMessage}>{entry.message}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
     }
   ], [
     activeProfile,
     handleStart,
+    handleChangePlaylist,
     isActive,
     playlists,
     selectedPlaylistId,
@@ -440,6 +510,8 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     playout.currentSec,
     playout.durationSec,
     playout.seek,
+    playout.changePlaylist,
+    playout.pendingAdBlock,
     selectedQueueIdx,
     stop,
     sbButtons,
@@ -454,7 +526,9 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     handleSbAssign,
     profiles,
     generalPlaylistId,
-    saveGeneralPlaylist
+    saveGeneralPlaylist,
+    playout.logs,
+    playout.clearLogs
   ])
 
   return (

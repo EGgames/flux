@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+// Map to track IPC wrapper functions so we can properly remove listeners
+const ipcListenerMap = new Map<(...args: unknown[]) => void, (...args: unknown[]) => void>()
+
 // Expose typed IPC API to renderer via contextBridge
 contextBridge.exposeInMainWorld('electronAPI', {
   // ── Profiles ──────────────────────────────────────────────
@@ -155,16 +158,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'playout:state-changed',
       'playout:ad-start',
       'playout:ad-end',
+      'playout:ad-pending',
       'playout:error',
       'playout:queue-update',
       'scheduler:program-changed',
       'streaming:status-changed'
     ]
-    if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args))
-    }
+    if (!validChannels.includes(channel)) return
+    const wrapper = (_event: unknown, ...args: unknown[]) => callback(...args)
+    ipcListenerMap.set(callback, wrapper)
+    ipcRenderer.on(channel, wrapper)
   },
   off: (channel: string, callback: (...args: unknown[]) => void) => {
-    ipcRenderer.removeListener(channel, callback as never)
+    const wrapper = ipcListenerMap.get(callback)
+    if (wrapper) {
+      ipcRenderer.removeListener(channel, wrapper as never)
+      ipcListenerMap.delete(callback)
+    }
   }
 })

@@ -23,7 +23,7 @@ export function useSoundboard(profileId: string | null) {
   const assign = useCallback(
     async (
       slotIndex: number,
-      data: { audioAssetId?: string | null; label?: string; mode?: string; color?: string }
+      data: { audioAssetId?: string | null; label?: string; mode?: 'oneshot' | 'toggle' | 'loop'; color?: string }
     ) => {
       if (!profileId) return
       const updated = await soundboardService.assign(profileId, slotIndex, data)

@@ -13,11 +13,21 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['src/renderer/src/__tests__/setup.ts'],
-    include: ['src/renderer/src/__tests__/**/*.{test,spec}.{ts,tsx}'],
+    include: [
+      'src/renderer/src/__tests__/**/*.{test,spec}.{ts,tsx}',
+      'src/main/__tests__/**/*.{test,spec}.ts'
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      include: ['src/renderer/src/services/**/*.ts', 'src/renderer/src/hooks/**/*.ts', 'src/renderer/src/components/**/*.tsx']
+      include: [
+        'src/renderer/src/services/**/*.ts',
+        'src/renderer/src/hooks/**/*.ts',
+        'src/renderer/src/components/**/*.tsx',
+        'src/renderer/src/pages/**/*.tsx',
+        'src/main/services/**/*.ts',
+        'src/main/ipc/**/*.ts'
+      ]
     }
   }
 })

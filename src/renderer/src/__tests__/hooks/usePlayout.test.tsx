@@ -61,7 +61,11 @@ describe('usePlayout', () => {
         on,
         off,
         playout: {
-          next: vi.fn()
+          next: vi.fn(),
+          getStatus: vi.fn().mockResolvedValue({ state: 'idle', track: null, queueIndex: 0, queueLength: 0, songsSinceLastAd: 0 })
+        },
+        audio: {
+          getServerPort: vi.fn().mockResolvedValue(0)
         }
       },
       writable: true,
@@ -72,9 +76,9 @@ describe('usePlayout', () => {
   it('subscribes and unsubscribes ipc events', () => {
     const { unmount } = renderHook(() => usePlayout())
 
-    expect(on).toHaveBeenCalledTimes(4)
+    expect(on).toHaveBeenCalledTimes(7)
     unmount()
-    expect(off).toHaveBeenCalledTimes(4)
+    expect(off).toHaveBeenCalledTimes(7)
   })
 
   it('updates state on state/ad events', async () => {
@@ -111,7 +115,7 @@ describe('usePlayout', () => {
     expect(result.current.status.track?.id).toBe('a1')
     expect(defaultHowlInstance.play).toHaveBeenCalled()
 
-    const opts = vi.mocked(Howl).mock.calls.at(-1)?.[0] as Record<string, unknown>
+    const opts = vi.mocked(Howl).mock.calls.at(-1)?.[0] as unknown as Record<string, unknown>
 
     act(() => {
       ;(opts.onend as () => void)?.() 
@@ -144,7 +148,7 @@ describe('usePlayout', () => {
       callbacks['playout:track-changed']?.({ track })
     })
 
-    const opts = vi.mocked(Howl).mock.calls.at(-1)?.[0] as Record<string, unknown>
+    const opts = vi.mocked(Howl).mock.calls.at(-1)?.[0] as unknown as Record<string, unknown>
     expect((opts.src as string[])[0]).toBe('https://example.com/live.mp3')
   })
 

@@ -1,7 +1,6 @@
 import { ipcMain, dialog } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { PrismaClient, AudioAsset } from '@prisma/client'
 import path from 'path'
-import fs from 'fs'
 import { getAudioDurationMs } from '../utils/audio'
 
 export function registerAudioAssetIpc(db: PrismaClient): void {
@@ -33,7 +32,7 @@ export function registerAudioAssetIpc(db: PrismaClient): void {
   })
 
   ipcMain.handle('audio-asset:import-batch', async (_event, filePaths: string[]) => {
-    const results = []
+    const results: AudioAsset[] = []
     for (const filePath of filePaths) {
       const name = path.basename(filePath, path.extname(filePath))
       const durationMs = await getAudioDurationMs(filePath)

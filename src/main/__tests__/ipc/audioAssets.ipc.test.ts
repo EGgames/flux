@@ -1,0 +1,84 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+vi.mock('electron', () => ({
+  ipcMain: { handle: vi.fn() },
+  dialog: { showOpenDialog: vi.fn() },
+  BrowserWindow: { fromWebContents: vi.fn(() => ({})) }
+}))
+
+vi.mock('../../utils/audio', () => ({
+  getAudioDurationMs: vi.fn(async () => 12345)
+}))
+
+import { registerAudioAssetIpc } from '../../ipc/audioAssets.ipc'
+import type { PrismaClient } from '@prisma/client'
+import { ipcMain } from 'electron'
+import { getRegisteredHandlers, invokeHandler, createDbMock } from '../helpers/ipcHarness'
+
+describe('audioAssets.ipc', () => {
+  let db: ReturnType<typeof createDbMock>
+  let handlers: Map<string, (...args: unknown[]) => unknown>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(ipcMain.handle as ReturnType<typeof vi.fn>).mockClear()
+    db = createDbMock()
+    registerAudioAssetIpc(db as unknown as PrismaClient)
+    handlers = getRegisteredHandlers()
+  })
+
+  it('registers all expected handlers', () => {
+    for (const ch of [
+      'audio-asset:list', 'audio-asset:pick-files', 'audio-asset:import',
+      'audio-asset:import-batch', 'audio-asset:delete'
+    ]) expect(handlers.has(ch)).toBe(true)
+  })
+
+  describe('audio-asset:list', () => {
+    it('returns assets ordered by name asc', async () => {
+      db.audioAsset.findMany.mockResolvedValue([{ id: 'a1' }])
+      const result = await invokeHandler(handlers, 'audio-asset:list')
+      expect(db.audioAsset.findMany).toHaveBeenCalledWith({ orderBy: { name: 'asc' } })
+      expect(result).toEqual([{ id: 'a1' }])
+    })
+  })
+
+  describe('audio-asset:import', () => {
+    it('creates asset deriving name from filename', async () => {
+      db.audioAsset.create.mockResolvedValue({ id: 'a1' })
+
+      await invokeHandler(handlers, 'audio-asset:import', '/path/to/Hit Song.mp3')
+
+      expect(db.audioAsset.create).toHaveBeenCalledWith({
+        data: { name: 'Hit Song', sourceType: 'local', sourcePath: '/path/to/Hit Song.mp3', durationMs: 12345 }
+      })
+    })
+  })
+
+  describe('audio-asset:import-batch', () => {
+    it('imports multiple files in order', async () => {
+      db.audioAsset.create
+        .mockResolvedValueOnce({ id: 'a1' })
+        .mockResolvedValueOnce({ id: 'a2' })
+
+      const result = await invokeHandler<unknown[]>(handlers, 'audio-asset:import-batch', ['/x.mp3', '/y.wav'])
+
+      expect(db.audioAsset.create).toHaveBeenCalledTimes(2)
+      expect(result).toHaveLength(2)
+    })
+
+    it('returns empty array for empty input', async () => {
+      const result = await invokeHandler<unknown[]>(handlers, 'audio-asset:import-batch', [])
+      expect(result).toEqual([])
+      expect(db.audioAsset.create).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('audio-asset:delete', () => {
+    it('returns success', async () => {
+      const result = await invokeHandler(handlers, 'audio-asset:delete', 'a1')
+      expect(db.audioAsset.delete).toHaveBeenCalledWith({ where: { id: 'a1' } })
+      expect(result).toEqual({ success: true })
+    })
+  })
+})

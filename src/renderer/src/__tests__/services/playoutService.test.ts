@@ -31,7 +31,7 @@ describe('playoutService', () => {
     await playoutService.triggerAdBlock('ab1')
     await playoutService.streamChunk(new ArrayBuffer(8))
 
-    expect(window.electronAPI.playout.start).toHaveBeenCalledWith('p1', 'pl1')
+    expect(window.electronAPI.playout.start).toHaveBeenCalledWith('p1', 'pl1', undefined)
     expect(window.electronAPI.playout.stop).toHaveBeenCalledTimes(1)
     expect(window.electronAPI.playout.pause).toHaveBeenCalledTimes(1)
     expect(window.electronAPI.playout.resume).toHaveBeenCalledTimes(1)
