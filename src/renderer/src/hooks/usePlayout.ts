@@ -268,7 +268,7 @@ export function usePlayout() {
     if (eqNodesRef.current) return
 
     // 10 bandas ISO: lowshelf en 31Hz, highshelf en 16kHz, peaking (Q de octava) en el medio.
-    // Con todas las ganancias en 0 la respuesta es plana, sin coloracion ni resonancias.
+    // Con todas las ganancias en 0 los biquads son identidad matematica: la cadena es transparente.
     const nodes: BiquadFilterNode[] = EQ_BAND_FREQS.map((freq, idx) => {
       const f = ctx.createBiquadFilter()
       if (idx === 0) {
@@ -286,10 +286,12 @@ export function usePlayout() {
       return f
     })
 
-    // Conectar en serie: nodes[0] -> nodes[1] -> ... -> nodes[N-1].
-    // El nodo final NO se conecta al destino aqui; lo hace applyEqRouting() segun enabled
-    // (bypass real cuando esta apagado: el source va directo al destination, sin filtros).
+    // Conectar en serie de forma DEFINITIVA: nodes[0] -> ... -> nodes[N-1] -> destination.
+    // Esta topologia jamas se modifica en runtime: el on/off del EQ se implementa SOLO
+    // poniendo todas las ganancias en 0 (que es identidad matematica para biquads).
+    // Asi evitamos disconnect/reconnect en pleno playback (causa de glitches/eco).
     for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1])
+    nodes[nodes.length - 1].connect(ctx.destination)
     eqNodesRef.current = nodes
   }, [])
 
@@ -301,26 +303,6 @@ export function usePlayout() {
     const ctxAny = ctx as unknown as { setSinkId?: (id: string) => Promise<void>; sinkId?: string }
     if (ctxAny.sinkId === sinkId) return
     try { await ctxAny.setSinkId?.(sinkId) } catch { /* unsupported */ }
-  }, [])
-
-  // Routing real: cuando el EQ esta apagado, el source va DIRECTO al destination y la cadena
-  // de filtros queda fuera del path. Asi no queda ningun efecto residual (ni coloracion de fase,
-  // ni filtros 'planos pero presentes'). Cuando se enciende, se vuelve a enrutar por la cadena.
-  const applyEqRouting = useCallback(() => {
-    const ctx = eqCtxRef.current
-    const nodes = eqNodesRef.current
-    const source = eqSourceRef.current
-    if (!ctx || !nodes || !source) return
-    const lastFilter = nodes[nodes.length - 1]
-    // Desconectar AMBAS salidas posibles del source y del filtro final, despues reconectar segun estado.
-    try { source.disconnect() } catch { /* no-op */ }
-    try { lastFilter.disconnect() } catch { /* no-op */ }
-    if (eqEnabledRef.current) {
-      source.connect(nodes[0])
-      lastFilter.connect(ctx.destination)
-    } else {
-      source.connect(ctx.destination)
-    }
   }, [])
 
   // Connect a Howl's <audio> element through the EQ filter chain
@@ -345,14 +327,14 @@ export function usePlayout() {
     }
 
     // Si este elemento ya esta enchufado al primer nodo del EQ, no hacemos nada.
+    // (Importante: NO desconectar/reconectar en runtime; eso causa glitches/eco.)
     if (eqCapturedNodeRef.current === audioEl && eqSourceRef.current) {
       if (ctx.state === 'suspended') void ctx.resume()
-      applyEqRouting()
       void updateEqSink()
       return
     }
 
-    // Desconectar el source anterior (de otro elemento) del nodo low.
+    // Cambio de elemento: desconectar el source anterior del nodo low.
     try { eqSourceRef.current?.disconnect() } catch { /* no-op */ }
     eqSourceRef.current = null
 
@@ -373,35 +355,35 @@ export function usePlayout() {
     }
 
     try {
+      source.connect(nodes[0])
       eqSourceRef.current = source
       eqCapturedNodeRef.current = audioEl
-      applyEqRouting()
       if (ctx.state === 'suspended') void ctx.resume()
       void updateEqSink()
-      appendLog('info', wasCached ? 'EQ reconectado (cached)' : `EQ ${eqEnabledRef.current ? 'conectado' : 'en bypass'} (ctx ${ctx.state}, sr ${ctx.sampleRate})`)
+      appendLog('info', wasCached ? 'EQ reconectado (cached)' : `EQ conectado (ctx ${ctx.state}, sr ${ctx.sampleRate})`)
     } catch (err) {
       console.error('[EQ] error connecting source to filter chain:', err)
       appendLog('error', `EQ error de conexión: ${(err as Error)?.message ?? String(err)}`)
     }
-  }, [ensureEqChain, updateEqSink, appendLog, applyEqRouting])
+  }, [ensureEqChain, updateEqSink, appendLog])
 
   useEffect(() => {
-    const wasEnabled = eqEnabledRef.current
     eqEnabledRef.current = equalizer.enabled
     const nodes = eqNodesRef.current
     const ctx = eqCtxRef.current
     if (!nodes || !ctx) return
-    // Si cambio el flag enabled, re-rutear (bypass real cuando off).
-    if (wasEnabled !== equalizer.enabled) applyEqRouting()
-    // Smooth ramping (~30 ms) evita clicks al mover sliders en tiempo real.
-    // Igual aplicamos las gananacias por si vuelve a encenderse: la cadena queda lista.
+    // Cuando enabled=false aplicamos ganancia 0 en TODAS las bandas. Para biquads (lowshelf,
+    // peaking con Q=sqrt(2), highshelf) con gain=0 dB, la respuesta es matematica identidad:
+    // |H(f)| = 1 en todo el espectro y fase nula. Es decir, el audio sale identico al original
+    // sin tocar la topologia del grafo (que jamas se reconfigura en runtime para evitar glitches).
     const now = ctx.currentTime
     const ramp = 0.03
+    const multiplier = equalizer.enabled ? 1 : 0
     for (let i = 0; i < nodes.length; i++) {
-      const target = equalizer.gains[i] ?? 0
+      const target = (equalizer.gains[i] ?? 0) * multiplier
       nodes[i].gain.setTargetAtTime(target, now, ramp)
     }
-  }, [equalizer, applyEqRouting])
+  }, [equalizer])
 
   const applySinkToHowl = useCallback(async (howl: Howl) => {
     const targetDeviceId = sinkDeviceIdRef.current
