@@ -218,8 +218,8 @@
 
 .eqBandsGrid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(38px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(10, minmax(34px, 1fr));
+  gap: 5px;
   flex: 1 1 auto;
   min-height: 0;
   align-items: stretch;

@@ -9,11 +9,15 @@ interface LocalOutputConfig {
   deviceName?: string
 }
 
-// ===== Equalizer (8 bands estilo Winamp) =====
-export const EQ_BAND_FREQS = [60, 170, 310, 600, 1000, 3000, 6000, 12000] as const
+// ===== Equalizer (10 bandas ISO estilo Winamp) =====
+// Frecuencias ISO con espaciado de 1 octava: 31, 62, 125, 250, 500, 1k, 2k, 4k, 8k, 16k Hz.
+// Q = sqrt(2) ~ 1.4142 es el valor canonico para bandas de octava (-3 dB en los bordes vecinos),
+// asi que cuando todas las gananacias estan en 0 la respuesta es plana sin coloracion.
+export const EQ_BAND_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const
 export const EQ_BANDS_COUNT = EQ_BAND_FREQS.length
 export const EQ_GAIN_MIN = -12
 export const EQ_GAIN_MAX = 12
+export const EQ_PEAKING_Q = Math.SQRT2
 
 export interface EqualizerPreset {
   id: string
@@ -23,14 +27,17 @@ export interface EqualizerPreset {
 }
 
 export const BUILT_IN_EQ_PRESETS: EqualizerPreset[] = [
-  { id: 'flat',       name: 'Flat',       gains: [ 0,  0,  0,  0,  0,  0,  0,  0], builtIn: true },
-  { id: 'rock',       name: 'Rock',       gains: [ 4,  3, -1, -2, -1,  2,  4,  5], builtIn: true },
-  { id: 'jazz',       name: 'Jazz',       gains: [ 3,  2,  1,  2, -2, -1,  0,  1], builtIn: true },
-  { id: 'pop',        name: 'Pop',        gains: [-1,  1,  3,  4,  3,  1, -1, -2], builtIn: true },
-  { id: 'classical',  name: 'Clásico',    gains: [ 4,  3,  2,  0,  0,  0,  2,  3], builtIn: true },
-  { id: 'bass-boost', name: 'Bass Boost', gains: [ 6,  5,  3,  1,  0,  0,  0,  0], builtIn: true },
-  { id: 'vocal',      name: 'Vocal',      gains: [-2, -1,  1,  3,  3,  2,  1, -1], builtIn: true },
-  { id: 'dance',      name: 'Dance',      gains: [ 4,  3,  1,  0, -1, -1,  2,  4], builtIn: true }
+  // 10 bandas: 31  62  125 250 500 1k  2k  4k  8k  16k
+  { id: 'flat',       name: 'Flat',       gains: [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0], builtIn: true },
+  { id: 'rock',       name: 'Rock',       gains: [ 5,  4,  3, -1, -2, -1,  1,  3,  4,  5], builtIn: true },
+  { id: 'jazz',       name: 'Jazz',       gains: [ 3,  2,  1,  2,  1, -1, -1,  0,  1,  2], builtIn: true },
+  { id: 'pop',        name: 'Pop',        gains: [-1, -1,  0,  2,  3,  4,  3,  1, -1, -2], builtIn: true },
+  { id: 'classical',  name: 'Clásico',    gains: [ 4,  4,  3,  2,  0,  0,  0,  1,  2,  3], builtIn: true },
+  { id: 'bass-boost', name: 'Bass Boost', gains: [ 6,  6,  5,  3,  1,  0,  0,  0,  0,  0], builtIn: true },
+  { id: 'treble-boost', name: 'Treble Boost', gains: [ 0,  0,  0,  0,  0,  0,  2,  4,  5,  6], builtIn: true },
+  { id: 'vocal',      name: 'Vocal',      gains: [-2, -2, -1,  1,  3,  3,  2,  1,  0, -1], builtIn: true },
+  { id: 'dance',      name: 'Dance',      gains: [ 5,  4,  3,  1,  0, -1, -1,  1,  3,  4], builtIn: true },
+  { id: 'loudness',   name: 'Loudness',   gains: [ 5,  4,  2,  0, -1, -1,  0,  2,  4,  5], builtIn: true }
 ]
 
 export interface EqualizerState {
@@ -260,7 +267,8 @@ export function usePlayout() {
     const ctx = eqCtxRef.current
     if (eqNodesRef.current) return
 
-    // 8 bandas: lowshelf en la primera, highshelf en la última, peaking (Q ~1.4) en el medio.
+    // 10 bandas ISO: lowshelf en 31Hz, highshelf en 16kHz, peaking (Q de octava) en el medio.
+    // Con todas las ganancias en 0 la respuesta es plana, sin coloracion ni resonancias.
     const nodes: BiquadFilterNode[] = EQ_BAND_FREQS.map((freq, idx) => {
       const f = ctx.createBiquadFilter()
       if (idx === 0) {
@@ -272,15 +280,16 @@ export function usePlayout() {
       } else {
         f.type = 'peaking'
         f.frequency.value = freq
-        f.Q.value = 1.4
+        f.Q.value = EQ_PEAKING_Q
       }
       f.gain.value = 0
       return f
     })
 
-    // Conectar en serie: nodes[0] -> nodes[1] -> ... -> destination
+    // Conectar en serie: nodes[0] -> nodes[1] -> ... -> nodes[N-1].
+    // El nodo final NO se conecta al destino aqui; lo hace applyEqRouting() segun enabled
+    // (bypass real cuando esta apagado: el source va directo al destination, sin filtros).
     for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1])
-    nodes[nodes.length - 1].connect(ctx.destination)
     eqNodesRef.current = nodes
   }, [])
 
@@ -292,6 +301,26 @@ export function usePlayout() {
     const ctxAny = ctx as unknown as { setSinkId?: (id: string) => Promise<void>; sinkId?: string }
     if (ctxAny.sinkId === sinkId) return
     try { await ctxAny.setSinkId?.(sinkId) } catch { /* unsupported */ }
+  }, [])
+
+  // Routing real: cuando el EQ esta apagado, el source va DIRECTO al destination y la cadena
+  // de filtros queda fuera del path. Asi no queda ningun efecto residual (ni coloracion de fase,
+  // ni filtros 'planos pero presentes'). Cuando se enciende, se vuelve a enrutar por la cadena.
+  const applyEqRouting = useCallback(() => {
+    const ctx = eqCtxRef.current
+    const nodes = eqNodesRef.current
+    const source = eqSourceRef.current
+    if (!ctx || !nodes || !source) return
+    const lastFilter = nodes[nodes.length - 1]
+    // Desconectar AMBAS salidas posibles del source y del filtro final, despues reconectar segun estado.
+    try { source.disconnect() } catch { /* no-op */ }
+    try { lastFilter.disconnect() } catch { /* no-op */ }
+    if (eqEnabledRef.current) {
+      source.connect(nodes[0])
+      lastFilter.connect(ctx.destination)
+    } else {
+      source.connect(ctx.destination)
+    }
   }, [])
 
   // Connect a Howl's <audio> element through the EQ filter chain
@@ -318,6 +347,7 @@ export function usePlayout() {
     // Si este elemento ya esta enchufado al primer nodo del EQ, no hacemos nada.
     if (eqCapturedNodeRef.current === audioEl && eqSourceRef.current) {
       if (ctx.state === 'suspended') void ctx.resume()
+      applyEqRouting()
       void updateEqSink()
       return
     }
@@ -343,32 +373,35 @@ export function usePlayout() {
     }
 
     try {
-      source.connect(nodes[0])
       eqSourceRef.current = source
       eqCapturedNodeRef.current = audioEl
+      applyEqRouting()
       if (ctx.state === 'suspended') void ctx.resume()
       void updateEqSink()
-      appendLog('info', wasCached ? 'EQ reconectado (cached)' : `EQ conectado (ctx ${ctx.state}, sr ${ctx.sampleRate})`)
+      appendLog('info', wasCached ? 'EQ reconectado (cached)' : `EQ ${eqEnabledRef.current ? 'conectado' : 'en bypass'} (ctx ${ctx.state}, sr ${ctx.sampleRate})`)
     } catch (err) {
       console.error('[EQ] error connecting source to filter chain:', err)
       appendLog('error', `EQ error de conexión: ${(err as Error)?.message ?? String(err)}`)
     }
-  }, [ensureEqChain, updateEqSink, appendLog])
+  }, [ensureEqChain, updateEqSink, appendLog, applyEqRouting])
 
   useEffect(() => {
+    const wasEnabled = eqEnabledRef.current
     eqEnabledRef.current = equalizer.enabled
     const nodes = eqNodesRef.current
     const ctx = eqCtxRef.current
     if (!nodes || !ctx) return
+    // Si cambio el flag enabled, re-rutear (bypass real cuando off).
+    if (wasEnabled !== equalizer.enabled) applyEqRouting()
     // Smooth ramping (~30 ms) evita clicks al mover sliders en tiempo real.
+    // Igual aplicamos las gananacias por si vuelve a encenderse: la cadena queda lista.
     const now = ctx.currentTime
     const ramp = 0.03
-    const multiplier = equalizer.enabled ? 1 : 0
     for (let i = 0; i < nodes.length; i++) {
-      const target = (equalizer.gains[i] ?? 0) * multiplier
+      const target = equalizer.gains[i] ?? 0
       nodes[i].gain.setTargetAtTime(target, now, ramp)
     }
-  }, [equalizer])
+  }, [equalizer, applyEqRouting])
 
   const applySinkToHowl = useCallback(async (howl: Howl) => {
     const targetDeviceId = sinkDeviceIdRef.current

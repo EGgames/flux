@@ -74,10 +74,10 @@ const playoutProp = {
   durationSec: 0,
   adBreakTimer: { name: null, elapsedLabel: '0:00', remainingLabel: '0:00' },
   nextAd: { countdownLabel: '—', atLabel: '—' },
-  equalizer: { enabled: false, gains: [0, 0, 0, 0, 0, 0, 0, 0], presetId: 'flat' },
-  equalizerFrequencies: [60, 170, 310, 600, 1000, 3000, 6000, 12000],
+  equalizer: { enabled: false, gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], presetId: 'flat' },
+  equalizerFrequencies: [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000],
   equalizerPresets: [
-    { id: 'flat', name: 'Flat', gains: [0, 0, 0, 0, 0, 0, 0, 0], builtIn: true }
+    { id: 'flat', name: 'Flat', gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], builtIn: true }
   ],
   setEqualizerBand: vi.fn(),
   toggleEqualizer: vi.fn(),
