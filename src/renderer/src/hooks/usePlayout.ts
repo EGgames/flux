@@ -886,7 +886,10 @@ export function usePlayout() {
 
   const stop = useCallback(async () => {
     howlRef.current?.unload()
+    howlRef.current = null
     monitorHowlRef.current?.unload()
+    monitorHowlRef.current = null
+    eqCapturedNodeRef.current = null
     setCurrentSec(0)
     setDurationSec(0)
     await playoutService.stop()
