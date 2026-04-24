@@ -56,6 +56,18 @@ function createWindow(): void {
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
+  // Permitir media (microfono) y speaker-selection (setSinkId) sin prompt.
+  // Sin esto Chromium devuelve deviceIds anonimizados desde enumerateDevices y
+  // HTMLMediaElement.setSinkId rechaza con NotFoundError. Es una app de escritorio
+  // de un solo usuario, no hay riesgo en otorgar permisos a nuestro propio renderer.
+  mainWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'media') return callback(true)
+    callback(false)
+  })
+  mainWindow.webContents.session.setPermissionCheckHandler((_wc, permission) => {
+    return permission === 'media'
+  })
+
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {

@@ -408,17 +408,25 @@ export function usePlayout() {
         appendLog('warn', 'Salida: setSinkId no soportado por el navegador')
         return
       }
-      try {
-        await node.setSinkId(targetDeviceId)
-        applied++
-      } catch (err) {
-        lastErr = err
+      // Algunos drivers / Chromium devuelven AbortError en el primer intento si el
+      // <audio> aun no termino de adjuntar el src. Reintentamos hasta 3 veces.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await node.setSinkId(targetDeviceId)
+          applied++
+          lastErr = null
+          break
+        } catch (err) {
+          lastErr = err
+          await new Promise((r) => setTimeout(r, 120))
+        }
       }
     }
-    if (applied > 0) {
+    if (applied > 0 && !lastErr) {
       appendLog('info', `Salida principal -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
     } else if (lastErr) {
-      appendLog('error', `Salida principal: setSinkId fallo (${(lastErr as Error)?.message ?? String(lastErr)})`)
+      const e = lastErr as Error
+      appendLog('error', `Salida principal: setSinkId fallo (${e?.name ?? 'Error'}: ${e?.message ?? String(lastErr)})`)
     }
   }, [appendLog])
 
@@ -430,17 +438,23 @@ export function usePlayout() {
     for (const sound of sounds) {
       const node = sound._node
       if (!node || typeof node.setSinkId !== 'function') continue
-      try {
-        await node.setSinkId(targetDeviceId)
-        applied++
-      } catch (err) {
-        lastErr = err
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await node.setSinkId(targetDeviceId)
+          applied++
+          lastErr = null
+          break
+        } catch (err) {
+          lastErr = err
+          await new Promise((r) => setTimeout(r, 120))
+        }
       }
     }
-    if (applied > 0) {
+    if (applied > 0 && !lastErr) {
       appendLog('info', `Monitor -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
     } else if (lastErr) {
-      appendLog('error', `Monitor: setSinkId fallo (${(lastErr as Error)?.message ?? String(lastErr)})`)
+      const e = lastErr as Error
+      appendLog('error', `Monitor: setSinkId fallo (${e?.name ?? 'Error'}: ${e?.message ?? String(lastErr)})`)
     }
   }, [appendLog])
 
