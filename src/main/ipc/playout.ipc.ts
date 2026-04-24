@@ -73,6 +73,11 @@ export function registerPlayoutIpc(
     return { success: true }
   })
 
+  ipcMain.handle('playout:stop-ad', () => {
+    playoutService?.stopAdBreak()
+    return { success: true }
+  })
+
   // Receive audio chunks from renderer for streaming
   ipcMain.handle('playout:stream-chunk', (_event, chunk: ArrayBuffer) => {
     streamingService.pushChunk(Buffer.from(chunk))

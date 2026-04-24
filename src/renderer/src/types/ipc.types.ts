@@ -183,6 +183,7 @@ export interface ElectronAPI {
     getStatus: () => Promise<PlayoutStatus>
     triggerAdBlock: (adBlockId: string) => Promise<{ success: boolean }>
     adEndAck: () => Promise<{ success: boolean }>
+    stopAd: () => Promise<{ success: boolean }>
     streamChunk: (chunk: ArrayBuffer) => Promise<void>
   }
   audio: {

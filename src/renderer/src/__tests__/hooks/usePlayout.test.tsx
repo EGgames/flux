@@ -79,9 +79,9 @@ describe('usePlayout', () => {
   it('subscribes and unsubscribes ipc events', () => {
     const { unmount } = renderHook(() => usePlayout())
 
-    expect(on).toHaveBeenCalledTimes(7)
+    expect(on).toHaveBeenCalledTimes(8)
     unmount()
-    expect(off).toHaveBeenCalledTimes(7)
+    expect(off).toHaveBeenCalledTimes(8)
   })
 
   it('updates state on state/ad events', async () => {

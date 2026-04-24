@@ -44,6 +44,21 @@
   border-color: var(--color-active);
 }
 
+.btnDanger {
+  padding: 7px 14px;
+  background: #d63b56;
+  color: #fff;
+  border: 1px solid #c22a44;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--transition);
+}
+
+.btnDanger:hover {
+  background: #c22a44;
+}
+
 .programLayoutControl {
   display: flex;
   align-items: center;

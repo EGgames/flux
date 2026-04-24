@@ -11,5 +11,6 @@ export const playoutService = {
   jumpTo: (index: number) => window.electronAPI.playout.jumpTo(index),
   getStatus: () => window.electronAPI.playout.getStatus(),
   triggerAdBlock: (adBlockId: string) => window.electronAPI.playout.triggerAdBlock(adBlockId),
+  stopAd: () => window.electronAPI.playout.stopAd(),
   streamChunk: (chunk: ArrayBuffer) => window.electronAPI.playout.streamChunk(chunk)
 }

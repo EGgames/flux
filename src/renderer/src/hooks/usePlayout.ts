@@ -655,6 +655,8 @@ export function usePlayout() {
   }, [applySinkToHowl, applyMonitorSinkToHowl, connectHowlToEq])
 
   const isAdBreakRef = useRef(false)
+  const adAbortedRef = useRef(false)
+  const adCurrentHowlRef = useRef<Howl | null>(null)
 
   useEffect(() => {
     const onStateChanged = (data: { state: PlayoutStatus['state'] }) => {
@@ -736,8 +738,10 @@ export function usePlayout() {
         .map((i) => i.audioAsset)
         .filter((a): a is AudioAsset => Boolean(a))
 
+      adAbortedRef.current = false
       const port = audioServerPortRef.current
       for (const asset of assets) {
+        if (adAbortedRef.current) break
         await new Promise<void>((resolve) => {
           const ext = asset.sourcePath.split('.').pop()?.toLowerCase() ?? 'mp3'
           const src =
@@ -761,13 +765,22 @@ export function usePlayout() {
           })
           adHowl.play()
           howlRef.current = adHowl
+          adCurrentHowlRef.current = adHowl
         })
+        adCurrentHowlRef.current = null
       }
+
+      const wasAborted = adAbortedRef.current
+      adAbortedRef.current = false
 
       // Clean up ad break refs before notifying main
       adBreakStartedAtRef.current = null
       adBreakTotalSecRef.current = null
       isAdBreakRef.current = false
+
+      if (wasAborted) {
+        appendLog('warn', 'Tanda detenida por el operador')
+      }
 
       // Signal main process that ad break is done
       try {
@@ -815,6 +828,19 @@ export function usePlayout() {
       appendLog('info', 'Tanda finalizada')
     }
 
+    const onAdStop = () => {
+      // Main process pidió detener la tanda en curso. Marcamos el flag de
+      // aborto para que el for-loop de onAdStart corte tras el item actual,
+      // y forzamos stop() del howl actual para resolver de inmediato.
+      if (!isAdBreakRef.current) return
+      adAbortedRef.current = true
+      const cur = adCurrentHowlRef.current
+      if (cur) {
+        try { cur.stop() } catch { /* no-op */ }
+        try { cur.unload() } catch { /* no-op */ }
+      }
+    }
+
     const onAdPending = (data: unknown) => {
       const d = data as { adBlockId: string; name: string }
       setPendingAdBlock({ id: d.adBlockId, name: d.name })
@@ -825,6 +851,7 @@ export function usePlayout() {
     window.electronAPI.on('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
     window.electronAPI.on('playout:ad-start', onAdStart as (...args: unknown[]) => void)
     window.electronAPI.on('playout:ad-end', onAdEnd as (...args: unknown[]) => void)
+    window.electronAPI.on('playout:ad-stop', onAdStop as (...args: unknown[]) => void)
     window.electronAPI.on('playout:ad-pending', onAdPending as (...args: unknown[]) => void)
     window.electronAPI.on('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
     window.electronAPI.on('playout:queue-update', onQueueUpdate as (...args: unknown[]) => void)
@@ -834,6 +861,7 @@ export function usePlayout() {
       window.electronAPI.off('playout:track-changed', onTrackChanged as (...args: unknown[]) => void)
       window.electronAPI.off('playout:ad-start', onAdStart as (...args: unknown[]) => void)
       window.electronAPI.off('playout:ad-end', onAdEnd as (...args: unknown[]) => void)
+      window.electronAPI.off('playout:ad-stop', onAdStop as (...args: unknown[]) => void)
       window.electronAPI.off('playout:ad-pending', onAdPending as (...args: unknown[]) => void)
       window.electronAPI.off('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
       window.electronAPI.off('playout:queue-update', onQueueUpdate as (...args: unknown[]) => void)
@@ -980,6 +1008,10 @@ export function usePlayout() {
     await playoutService.triggerAdBlock(adBlockId)
   }, [])
 
+  const stopAd = useCallback(async () => {
+    await playoutService.stopAd()
+  }, [])
+
   const changePlaylist = useCallback(async (profileId: string, playlistId: string | null) => {
     const currentHowl = howlRef.current
     if (currentHowl?.playing()) {
@@ -1091,6 +1123,7 @@ export function usePlayout() {
     currentSec,
     durationSec,
     triggerAdBlock,
+    stopAd,
     changePlaylist,
     adBreakTimer: {
       name: adBreakName,

@@ -245,6 +245,25 @@ export class PlayoutService {
     }
   }
 
+  /**
+   * Detiene una tanda en curso. Le pide al renderer que aborte la cadena de
+   * audios de la tanda y el propio renderer responde con `adEndAck` que
+   * dispara `adBreakEnd()` y devuelve el estado a `prevAdState`.
+   */
+  stopAdBreak(): void {
+    if (this.state !== 'ad_break') return
+    this.win.webContents.send('playout:ad-stop', {})
+    if (this.profileId) {
+      void this.db.playoutEvent.create({
+        data: {
+          profileId: this.profileId,
+          eventType: 'ad_stop',
+          payload: '{}'
+        }
+      }).catch((e: unknown) => log.warn('[playout] ad_stop log failed', e))
+    }
+  }
+
   getStatus(): PlayoutStatus {
     return {
       state: this.state,

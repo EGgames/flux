@@ -85,7 +85,7 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('')
   const [layoutProgramId, setLayoutProgramId] = useState<string>('')
   const { layout, saveLayout, workspaceHeight, saveWorkspaceHeight } = useWorkspaceLayout(activeProfile, 'playout-workspace', layoutProgramId || '__default')
-  const { status, error, start, stop, prev, next, jumpTo } = playout
+  const { status, error, start, stop, prev, next, jumpTo, stopAd } = playout
 
   const handleChangePlaylist = useCallback(() => {
     if (!activeProfile) return
@@ -182,6 +182,15 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
                 <button className={styles.btnSecondary} onClick={stop}>
                   ⏹ Detener
                 </button>
+                {status.state === 'ad_break' && (
+                  <button
+                    className={styles.btnDanger}
+                    onClick={() => { void stopAd() }}
+                    title="Detener tanda en curso"
+                  >
+                    ⏹ Detener tanda
+                  </button>
+                )}
                 <button
                   className={styles.btnSecondary}
                   onClick={prev}

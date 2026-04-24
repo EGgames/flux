@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getStatus: () => ipcRenderer.invoke('playout:status'),
     triggerAdBlock: (adBlockId: string) => ipcRenderer.invoke('playout:trigger-ad', adBlockId),
     adEndAck: () => ipcRenderer.invoke('playout:ad-end-ack'),
+    stopAd: () => ipcRenderer.invoke('playout:stop-ad'),
     streamChunk: (chunk: ArrayBuffer) => ipcRenderer.invoke('playout:stream-chunk', chunk)
   },
 
@@ -158,6 +159,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'playout:state-changed',
       'playout:ad-start',
       'playout:ad-end',
+      'playout:ad-stop',
       'playout:ad-pending',
       'playout:error',
       'playout:queue-update',

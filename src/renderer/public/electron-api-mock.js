@@ -44,6 +44,8 @@
       next:          noop,
       getStatus:     function() { return Promise.resolve({ state: 'stopped', profileId: null, track: null, queueIndex: 0, queueLength: 0, songsSinceLastAd: 0 }) },
       triggerAdBlock: noop,
+      adEndAck:      noop,
+      stopAd:        noop,
       streamChunk:   noop
     },
 
