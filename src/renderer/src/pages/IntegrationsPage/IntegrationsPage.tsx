@@ -56,6 +56,14 @@ export default function IntegrationsPage({ profileId }: Props) {
 
   useEffect(() => {
     const loadDevices = async () => {
+      // Sin getUserMedia los deviceId son opacos/anonimizados y los labels vacios.
+      // Pedimos permiso una vez para desbloquear deviceIds reales y persistentes.
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+      } catch {
+        // El usuario nego el permiso o no hay micro. Igual intentamos enumerar.
+      }
       try {
         const mediaDevices = await navigator.mediaDevices.enumerateDevices()
         const audioOutputs = mediaDevices
@@ -90,6 +98,38 @@ export default function IntegrationsPage({ profileId }: Props) {
   const notifyOutputsChanged = () => {
     if (!profileId) return
     window.dispatchEvent(new CustomEvent('flux:outputs-changed', { detail: { profileId } }))
+  }
+
+  // Autoguardar local al cambiar el device (sin requerir click en Guardar).
+  const handleLocalDeviceChange = async (deviceId: string) => {
+    const selected = devices.find((d) => d.deviceId === deviceId)
+    const cfg = { deviceId, deviceName: selected?.label ?? 'Salida del sistema (default)' }
+    setLocalCfg(cfg)
+    if (!profileId) return
+    const saved = await outputService.save({
+      profileId,
+      outputType: 'local',
+      config: JSON.stringify(cfg),
+      enabled: local?.enabled ?? true
+    })
+    setOutputs((prev) => [...prev.filter((o) => o.outputType !== 'local'), saved])
+    notifyOutputsChanged()
+  }
+
+  // Autoguardar monitor al cambiar el device. Habilita monitor por defecto la primera vez.
+  const handleMonitorDeviceChange = async (deviceId: string) => {
+    const selected = devices.find((d) => d.deviceId === deviceId)
+    const cfg = { deviceId, deviceName: selected?.label ?? 'Salida del sistema (default)' }
+    setMonitorCfg(cfg)
+    if (!profileId) return
+    const saved = await outputService.save({
+      profileId,
+      outputType: 'monitor',
+      config: JSON.stringify(cfg),
+      enabled: monitor?.enabled ?? true
+    })
+    setOutputs((prev) => [...prev.filter((o) => o.outputType !== 'monitor'), saved])
+    notifyOutputsChanged()
   }
 
   const handleSaveLocal = async () => {
@@ -138,7 +178,7 @@ export default function IntegrationsPage({ profileId }: Props) {
       profileId,
       outputType: 'monitor',
       config: JSON.stringify(monitorCfg),
-      enabled: monitor?.enabled ?? false
+      enabled: monitor?.enabled ?? true
     })
     setOutputs((prev) => {
       const filtered = prev.filter((o) => o.outputType !== 'monitor')
@@ -194,13 +234,7 @@ export default function IntegrationsPage({ profileId }: Props) {
             <label className={styles.label}>Dispositivo de salida</label>
             <select
               value={localCfg.deviceId}
-              onChange={(e) => {
-                const selected = devices.find((device) => device.deviceId === e.target.value)
-                setLocalCfg({
-                  deviceId: e.target.value,
-                  deviceName: selected?.label ?? 'Salida del sistema (default)'
-                })
-              }}
+              onChange={(e) => { void handleLocalDeviceChange(e.target.value) }}
             >
               <option value="default">Salida del sistema (default)</option>
               {devices.map((device) => (
@@ -243,13 +277,7 @@ export default function IntegrationsPage({ profileId }: Props) {
             <label className={styles.label}>Dispositivo de monitoreo</label>
             <select
               value={monitorCfg.deviceId}
-              onChange={(e) => {
-                const selected = devices.find((device) => device.deviceId === e.target.value)
-                setMonitorCfg({
-                  deviceId: e.target.value,
-                  deviceName: selected?.label ?? 'Salida del sistema (default)'
-                })
-              }}
+              onChange={(e) => { void handleMonitorDeviceChange(e.target.value) }}
             >
               <option value="default">Salida del sistema (default)</option>
               {devices.map((device) => (

@@ -398,31 +398,51 @@ export function usePlayout() {
     // si el usuario cambio desde un device fisico hacia 'default'. Antes filtrabamos null y
     // quedaba pegado al ultimo dispositivo aplicado.
     const targetDeviceId = sinkDeviceIdRef.current ?? 'default'
-    try {
-      const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
-      for (const sound of sounds) {
-        if (sound._node?.setSinkId) {
-          await sound._node.setSinkId(targetDeviceId)
-        }
+    const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
+    let applied = 0
+    let lastErr: unknown = null
+    for (const sound of sounds) {
+      const node = sound._node
+      if (!node) continue
+      if (typeof node.setSinkId !== 'function') {
+        appendLog('warn', 'Salida: setSinkId no soportado por el navegador')
+        return
       }
-    } catch {
-      // Some environments do not allow changing output device; keep default sink silently.
+      try {
+        await node.setSinkId(targetDeviceId)
+        applied++
+      } catch (err) {
+        lastErr = err
+      }
     }
-  }, [])
+    if (applied > 0) {
+      appendLog('info', `Salida principal -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
+    } else if (lastErr) {
+      appendLog('error', `Salida principal: setSinkId fallo (${(lastErr as Error)?.message ?? String(lastErr)})`)
+    }
+  }, [appendLog])
 
   const applyMonitorSinkToHowl = useCallback(async (howl: Howl) => {
     const targetDeviceId = monitorSinkDeviceIdRef.current ?? 'default'
-    try {
-      const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
-      for (const sound of sounds) {
-        if (sound._node?.setSinkId) {
-          await sound._node.setSinkId(targetDeviceId)
-        }
+    const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
+    let applied = 0
+    let lastErr: unknown = null
+    for (const sound of sounds) {
+      const node = sound._node
+      if (!node || typeof node.setSinkId !== 'function') continue
+      try {
+        await node.setSinkId(targetDeviceId)
+        applied++
+      } catch (err) {
+        lastErr = err
       }
-    } catch {
-      // Monitor device unavailable, ignore silently.
     }
-  }, [])
+    if (applied > 0) {
+      appendLog('info', `Monitor -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
+    } else if (lastErr) {
+      appendLog('error', `Monitor: setSinkId fallo (${(lastErr as Error)?.message ?? String(lastErr)})`)
+    }
+  }, [appendLog])
 
   const loadLocalOutput = useCallback(async (profileId: string) => {
     const outputs = await outputService.list(profileId)
