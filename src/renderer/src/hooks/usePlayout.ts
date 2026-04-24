@@ -157,6 +157,29 @@ function formatHms(seconds: number): string {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
+// Patch global del constructor Audio para que TODO <audio> nazca con crossOrigin='anonymous'.
+// Necesario para que createMediaElementSource() reciba samples reales y no silencio:
+// - El audio se sirve desde http://127.0.0.1:<port> (distinto origin del renderer).
+// - El server emite Access-Control-Allow-Origin: *.
+// - Pero <audio> SOLO realiza el fetch en modo CORS si crossOrigin esta seteado ANTES de la carga.
+// - Howler html5 crea sus elementos con `new Audio()`, asi que parchamos el constructor global.
+if (typeof window !== 'undefined' && !(window as unknown as { __audioCrossOriginPatched?: boolean }).__audioCrossOriginPatched) {
+  try {
+    const OriginalAudio = window.Audio
+    const PatchedAudio = function (this: HTMLAudioElement, ...args: ConstructorParameters<typeof Audio>) {
+      const el = new OriginalAudio(...args)
+      try { el.crossOrigin = 'anonymous' } catch { /* no-op */ }
+      return el
+    } as unknown as typeof Audio
+    PatchedAudio.prototype = OriginalAudio.prototype
+    window.Audio = PatchedAudio
+    ;(window as unknown as { __audioCrossOriginPatched?: boolean }).__audioCrossOriginPatched = true
+    console.info('[EQ] window.Audio patched: crossOrigin=anonymous por defecto')
+  } catch (err) {
+    console.warn('[EQ] no se pudo parchar window.Audio:', err)
+  }
+}
+
 export function usePlayout() {
   const [status, setStatus] = useState<PlayoutStatus>({
     state: 'stopped',
@@ -282,12 +305,12 @@ export function usePlayout() {
     const audioEl = sounds?.[0]?._node as HTMLAudioElement | undefined
     if (!audioEl) {
       console.warn('[EQ] no audio element found on howl, skipping EQ connect')
+      appendLog('warn', 'EQ: no se encontró elemento de audio')
       return
     }
 
-    // Cross-origin: el audio se sirve desde http://127.0.0.1:<port>/ o local-audio://,
-    // distinto del origin del renderer. Sin crossOrigin el AudioContext no puede leer
-    // los samples y createMediaElementSource captura pero entrega silencio.
+    // Si el elemento ya estaba en uso sin crossOrigin (caso borde), forzar reload no es viable
+    // sin cortar el audio. El patch global de window.Audio garantiza crossOrigin desde el inicio.
     if (!audioEl.crossOrigin) {
       try { audioEl.crossOrigin = 'anonymous' } catch { /* no-op */ }
     }
@@ -305,14 +328,15 @@ export function usePlayout() {
 
     // Reusar el source si ya capturamos este elemento antes (Howler html5 pool reciclo el <audio>).
     let source = eqSourceCacheRef.current.get(audioEl) ?? null
+    let wasCached = source !== null
     if (!source) {
       try {
         source = ctx.createMediaElementSource(audioEl)
         eqSourceCacheRef.current.set(audioEl, source)
       } catch (err) {
         // InvalidStateError: el elemento ya estaba enchufado a OTRO AudioContext.
-        // No hay forma de recuperarlo, el audio sale por el output default y el EQ no lo afecta.
-        console.error('[EQ] createMediaElementSource fallo, EQ no afectara este track:', err)
+        console.error('[EQ] createMediaElementSource fallo:', err)
+        appendLog('error', `EQ desconectado: ${(err as Error)?.message ?? String(err)}`)
         eqCapturedNodeRef.current = audioEl
         return
       }
@@ -324,10 +348,12 @@ export function usePlayout() {
       eqCapturedNodeRef.current = audioEl
       if (ctx.state === 'suspended') void ctx.resume()
       void updateEqSink()
+      appendLog('info', wasCached ? 'EQ reconectado (cached)' : `EQ conectado (ctx ${ctx.state}, sr ${ctx.sampleRate})`)
     } catch (err) {
       console.error('[EQ] error connecting source to filter chain:', err)
+      appendLog('error', `EQ error de conexión: ${(err as Error)?.message ?? String(err)}`)
     }
-  }, [ensureEqChain, updateEqSink])
+  }, [ensureEqChain, updateEqSink, appendLog])
 
   useEffect(() => {
     eqEnabledRef.current = equalizer.enabled
