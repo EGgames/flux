@@ -1,0 +1,142 @@
+.menuBar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 4px;
+  gap: 2px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.appName {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-active);
+  letter-spacing: 1px;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.menuRoot {
+  position: relative;
+}
+
+.menuBtn {
+  height: 24px;
+  padding: 0 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background var(--transition);
+}
+
+.menuBtn:hover,
+.menuBtn.active {
+  background: var(--color-panel-alt);
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 180px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  z-index: 9999;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.dropItem {
+  display: block;
+  width: 100%;
+  padding: 7px 14px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.dropItem:hover {
+  background: var(--color-panel-alt);
+}
+
+.separator {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 3px 0;
+}
+
+/* About modal */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalBox {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 36px 40px;
+  min-width: 300px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.modalLogo {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--color-active);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.modalVersion {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.modalDesc {
+  font-size: 13px;
+  color: var(--color-text);
+  margin-top: 4px;
+}
+
+.modalMeta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.modalClose {
+  margin-top: 16px;
+  padding: 7px 24px;
+  background: var(--color-panel-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.modalClose:hover {
+  border-color: var(--color-active);
+}

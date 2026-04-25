@@ -25,7 +25,7 @@ export function usePrograms(profileId: string | null) {
     priority?: number
   }) => {
     if (!profileId) return
-    const program = await programService.create({ ...data, profileId, enabled: true })
+    const program = await programService.create({ ...data, profileId })
     setPrograms((prev) => [...prev, program])
     return program
   }, [profileId])

@@ -1,0 +1,107 @@
+.vu {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: stretch;
+  padding: 12px;
+  background: rgba(15, 18, 22, 0.92);
+  border: 1px solid #2a3038;
+  border-radius: 8px;
+  height: 100%;
+  min-height: 200px;
+  box-sizing: border-box;
+}
+
+.channel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 36px;
+}
+
+.channelLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b8c0cc;
+  letter-spacing: 0.5px;
+}
+
+.bar {
+  position: relative;
+  width: 100%;
+  max-width: 28px;
+  flex: 1;
+  background: #0a0c10;
+  border: 1px solid #1c2128;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+.fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  transition: height 60ms linear;
+}
+
+.tickYellow,
+.tickRed {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+}
+
+.tickYellow {
+  background: rgba(245, 192, 0, 0.45);
+}
+
+.tickRed {
+  background: rgba(214, 40, 40, 0.6);
+}
+
+.clipIndicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  background: #ff2222;
+  box-shadow: 0 0 8px #ff2222;
+  animation: clipPulse 0.4s linear infinite alternate;
+}
+
+@keyframes clipPulse {
+  from { opacity: 1; }
+  to { opacity: 0.3; }
+}
+
+.dbValue {
+  font-size: 10px;
+  color: #8a94a3;
+  font-family: 'Consolas', 'Courier New', monospace;
+  text-align: center;
+  min-width: 40px;
+}
+
+.scale {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 22px;
+  margin: 18px 0 18px 0;
+  align-items: center;
+  font-size: 9px;
+  color: #6a7280;
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.scaleMark {
+  position: absolute;
+  transform: translateY(50%);
+}

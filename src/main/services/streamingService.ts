@@ -123,7 +123,7 @@ export class StreamingService {
   }
 
   async testConnection(
-    outputType: string,
+    _outputType: string,
     config: IcecastConfig | ShoutcastConfig
   ): Promise<{ success: boolean; message: string }> {
     return new Promise((resolve) => {

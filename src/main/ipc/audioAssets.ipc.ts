@@ -1,7 +1,6 @@
 import { ipcMain, dialog } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { PrismaClient, AudioAsset } from '@prisma/client'
 import path from 'path'
-import fs from 'fs'
 import { getAudioDurationMs } from '../utils/audio'
 
 export function registerAudioAssetIpc(db: PrismaClient): void {
@@ -33,7 +32,7 @@ export function registerAudioAssetIpc(db: PrismaClient): void {
   })
 
   ipcMain.handle('audio-asset:import-batch', async (_event, filePaths: string[]) => {
-    const results = []
+    const results: AudioAsset[] = []
     for (const filePath of filePaths) {
       const name = path.basename(filePath, path.extname(filePath))
       const durationMs = await getAudioDurationMs(filePath)
@@ -49,4 +48,24 @@ export function registerAudioAssetIpc(db: PrismaClient): void {
     await db.audioAsset.delete({ where: { id } })
     return { success: true }
   })
+
+  ipcMain.handle(
+    'audio-assets:update-fades',
+    async (
+      _event,
+      payload: { assetId: string; fadeInMs: number | null; fadeOutMs: number | null }
+    ) => {
+      const { assetId, fadeInMs, fadeOutMs } = payload
+      const clamp = (v: number | null): number | null => {
+        if (v === null || v === undefined) return null
+        const n = Math.round(Number(v))
+        if (!Number.isFinite(n) || n <= 0) return null
+        return Math.min(15000, Math.max(0, n))
+      }
+      return db.audioAsset.update({
+        where: { id: assetId },
+        data: { fadeInMs: clamp(fadeInMs), fadeOutMs: clamp(fadeOutMs) }
+      })
+    }
+  )
 }

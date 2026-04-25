@@ -19,3 +19,4 @@
 .testError { background: #3a1020; color: var(--color-active); }
 .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .checkbox { width: 16px; height: 16px; accent-color: var(--color-active); cursor: pointer; }
+.monitorHint { font-size: 12px; color: var(--color-text-muted); margin: -6px 0 10px; }

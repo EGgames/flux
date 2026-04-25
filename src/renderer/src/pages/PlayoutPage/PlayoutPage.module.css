@@ -44,6 +44,21 @@
   border-color: var(--color-active);
 }
 
+.btnDanger {
+  padding: 7px 14px;
+  background: #d63b56;
+  color: #fff;
+  border: 1px solid #c22a44;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--transition);
+}
+
+.btnDanger:hover {
+  background: #c22a44;
+}
+
 .programLayoutControl {
   display: flex;
   align-items: center;
@@ -69,6 +84,54 @@
   color: var(--color-text-muted);
 }
 
+.generalPlaylistRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.generalPlaylistRow .label {
+  white-space: nowrap;
+}
+
+.generalPlaylistRow .select {
+  flex: 1;
+  min-width: 140px;
+}
+
+.noProgramsNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: rgba(230, 160, 20, 0.12);
+  border: 1px solid rgba(230, 160, 20, 0.35);
+  color: var(--color-warning, #e6a014);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.noProgramsNoticeOk {
+  background: rgba(50, 180, 100, 0.1);
+  border-color: rgba(50, 180, 100, 0.3);
+  color: var(--color-success, #3ab464);
+}
+
+.noProgramsNoticeWarn {
+  background: rgba(90, 120, 230, 0.12);
+  border-color: rgba(90, 120, 230, 0.35);
+  color: var(--color-accent, #6b8ef7);
+}
+
+.noProgramsIcon {
+  font-style: normal;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .label {
   color: var(--color-text);
   font-weight: 700;
@@ -91,10 +154,16 @@
   border-radius: var(--radius);
   border: 1px solid transparent;
   transition: background var(--transition);
+  cursor: pointer;
 }
 
 .queueItem:hover {
   background: var(--color-panel-alt);
+}
+
+.queueItem.selected {
+  background: var(--color-panel-alt);
+  border-color: var(--color-accent);
 }
 
 .queueItem.current {
@@ -131,33 +200,82 @@
 .equalizerPanel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+.eqHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .eqToggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   color: var(--color-text-muted);
 }
 
-.eqBandRow {
+.eqPresetSelect {
+  flex: 1 1 140px;
+  min-width: 120px;
+  padding: 4px 6px;
+  background: var(--color-surface, #1b1d23);
+  color: var(--color-text, #e8e8e8);
+  border: 1px solid var(--color-border, #2a2d36);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.eqBandsGrid {
   display: grid;
-  grid-template-columns: 56px 1fr 58px;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: repeat(10, minmax(34px, 1fr));
+  gap: 5px;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  padding: 6px 4px;
+  background: var(--color-surface, #1b1d23);
+  border: 1px solid var(--color-border, #2a2d36);
+  border-radius: 6px;
 }
 
-.eqBandLabel {
-  font-size: 12px;
-  color: var(--color-text-muted);
+.eqBandColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 160px;
 }
 
 .eqBandValue {
-  text-align: right;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-height: 12px;
+}
+
+.eqBandFreq {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.eqBandSlider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 18px;
+  flex: 1 1 auto;
+  min-height: 110px;
+  cursor: ns-resize;
+  accent-color: var(--color-accent, #4f9dff);
 }
 
 .adMonitorPanel {
@@ -192,6 +310,13 @@
   color: var(--color-text-muted);
 }
 
+.queueDur {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #888);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .queueDuration {
   font-size: 11px;
   color: var(--color-text-muted);
@@ -215,3 +340,118 @@
   padding: 20px;
   text-align: center;
 }
+
+/* Progress bar / seek */
+.progressRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.progressBar {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--color-active);
+  cursor: pointer;
+}
+
+.progressLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* Track metadata */
+.trackPath {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--color-panel-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  color: var(--color-text-muted);
+}
+
+/* Soundboard panel inside workspace */
+.soundboardPanelWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  overflow: auto;
+}
+
+.soundboardPanelControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ===== Logs panel ===== */
+.logsPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+  min-height: 0;
+}
+.logsToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.logsCount {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.logsList {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--color-surface, #1b1d23);
+  border: 1px solid var(--color-border, #2a2d36);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.logsEmpty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: 6px 0;
+}
+.logsItem {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.logsItem:last-child { border-bottom: none; }
+.logsTime {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.logsMessage { color: var(--color-text, #e8e8e8); word-break: break-word; }
+.logsItem_warn .logsMessage { color: #f0b429; }
+.logsItem_error .logsMessage { color: #ef4444; }

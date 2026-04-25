@@ -1,0 +1,157 @@
+.mixer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+}
+
+.decksRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.deck {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+.deckHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.deckLabel {
+  color: #3a7bd5;
+}
+
+.cueBadge {
+  background: #d63b56;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.deckBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assetSelect {
+  width: 100%;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.trackInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 32px;
+}
+
+.trackName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackTime {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  flex: 1;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: rgba(58, 123, 213, 0.25);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cueActive {
+  background: #d63b56 !important;
+  border-color: #c22a44 !important;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.volume input {
+  flex: 1;
+}
+
+.crossfader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+}
+
+.cfSlider {
+  flex: 1;
+  height: 6px;
+}
+
+.cfLabelA, .cfLabelB {
+  font-weight: 700;
+  color: #3a7bd5;
+}
+
+.monitorHint {
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(214, 59, 86, 0.12);
+  border: 1px solid rgba(214, 59, 86, 0.25);
+  border-radius: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}

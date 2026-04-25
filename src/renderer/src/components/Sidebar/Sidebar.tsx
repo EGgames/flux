@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/ad-breaks', icon: '📢', label: 'Tandas' },
   { to: '/programs', icon: '📅', label: 'Programas' },
   { to: '/integrations', icon: '🔌', label: 'Salidas' },
+  { to: '/efectos', icon: '🎚', label: 'Efectos' },
   { to: '/profiles', icon: '👤', label: 'Perfiles' }
 ]
 

@@ -16,6 +16,18 @@ export interface AudioAsset {
   sourcePath: string
   durationMs: number | null
   tags: string
+  fadeInMs: number | null
+  fadeOutMs: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AudioEffectsConfig {
+  id: string
+  profileId: string
+  crossfadeEnabled: boolean
+  crossfadeMs: number
+  crossfadeCurve: 'equal-power' | 'linear'
   createdAt: string
   updatedAt: string
 }
@@ -97,7 +109,7 @@ export interface RadioProgram {
 export interface OutputIntegration {
   id: string
   profileId: string
-  outputType: 'local' | 'icecast' | 'shoutcast'
+  outputType: 'local' | 'icecast' | 'shoutcast' | 'monitor'
   config: string
   enabled: boolean
 }
@@ -126,6 +138,11 @@ export interface ElectronAPI {
     importBatch: (filePaths: string[]) => Promise<AudioAsset[]>
     remove: (id: string) => Promise<{ success: boolean }>
     pickFiles: () => Promise<string[]>
+    updateFades: (assetId: string, fadeInMs: number | null, fadeOutMs: number | null) => Promise<AudioAsset>
+  }
+  audioEffects: {
+    get: (profileId: string) => Promise<AudioEffectsConfig | null>
+    update: (payload: { profileId: string; crossfadeEnabled?: boolean; crossfadeMs?: number; crossfadeCurve?: string }) => Promise<AudioEffectsConfig>
   }
   playlists: {
     list: (profileId: string) => Promise<Playlist[]>
@@ -172,15 +189,28 @@ export interface ElectronAPI {
     toggleEnabled: (id: string, enabled: boolean) => Promise<OutputIntegration>
   }
   playout: {
-    start: (profileId: string, playlistId?: string) => Promise<PlayoutStatus>
+    start: (profileId: string, playlistId?: string, startIndex?: number) => Promise<PlayoutStatus>
     syncProgram: (profileId: string, playlistId?: string | null) => Promise<PlayoutStatus>
     stop: () => Promise<{ success: boolean }>
     pause: () => Promise<{ success: boolean }>
     resume: () => Promise<{ success: boolean }>
+    prev: () => Promise<{ success: boolean }>
     next: () => Promise<{ success: boolean }>
+    jumpTo: (index: number) => Promise<{ success: boolean }>
     getStatus: () => Promise<PlayoutStatus>
     triggerAdBlock: (adBlockId: string) => Promise<{ success: boolean }>
+    adEndAck: () => Promise<{ success: boolean }>
+    stopAd: () => Promise<{ success: boolean }>
     streamChunk: (chunk: ArrayBuffer) => Promise<void>
+  }
+  audio: {
+    getServerPort: () => Promise<number | null>
+  }
+  windowControls: {
+    minimize: () => Promise<void>
+    maximize: () => Promise<void>
+    close: () => Promise<void>
+    isMaximized: () => Promise<boolean>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => void
   off: (channel: string, callback: (...args: unknown[]) => void) => void

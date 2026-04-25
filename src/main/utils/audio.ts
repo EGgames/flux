@@ -1,6 +1,5 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import path from 'path'
 
 const execFileAsync = promisify(execFile)
 
@@ -30,5 +29,5 @@ export async function getAudioDurationMs(filePath: string): Promise<number | nul
  */
 export function toLocalAudioUrl(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')
-  return `local-audio://${encodeURIComponent(normalized)}`
+  return `local-audio://?p=${encodeURIComponent(normalized.replace(/\//g, '\\'))}`
 }

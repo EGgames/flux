@@ -25,7 +25,7 @@ function buildStatus(state: PlayoutStatus['state']): PlayoutStatus {
 
 describe('NowPlayingBar', () => {
   it('renders stopped state and disabled transport', () => {
-    const controls = { pause: vi.fn(), resume: vi.fn(), next: vi.fn(), stop: vi.fn() }
+    const controls = { pause: vi.fn(), resume: vi.fn(), prev: vi.fn(), next: vi.fn(), stop: vi.fn(), volume: 1, setVolume: vi.fn() }
     render(<NowPlayingBar status={buildStatus('stopped')} controls={controls} />)
 
     expect(screen.getByText('Detenido')).toBeInTheDocument()
@@ -35,7 +35,7 @@ describe('NowPlayingBar', () => {
   })
 
   it('renders playing state and triggers pause', () => {
-    const controls = { pause: vi.fn(), resume: vi.fn(), next: vi.fn(), stop: vi.fn() }
+    const controls = { pause: vi.fn(), resume: vi.fn(), prev: vi.fn(), next: vi.fn(), stop: vi.fn(), volume: 1, setVolume: vi.fn() }
     render(<NowPlayingBar status={buildStatus('playing')} controls={controls} />)
 
     expect(screen.getByText('En aire')).toBeInTheDocument()
@@ -47,7 +47,7 @@ describe('NowPlayingBar', () => {
   })
 
   it('shows resume button in paused state', () => {
-    const controls = { pause: vi.fn(), resume: vi.fn(), next: vi.fn(), stop: vi.fn() }
+    const controls = { pause: vi.fn(), resume: vi.fn(), prev: vi.fn(), next: vi.fn(), stop: vi.fn(), volume: 1, setVolume: vi.fn() }
     render(<NowPlayingBar status={buildStatus('paused')} controls={controls} />)
 
     fireEvent.click(screen.getByTitle('Reanudar'))
@@ -55,7 +55,7 @@ describe('NowPlayingBar', () => {
   })
 
   it('renders ad break state and pause control', () => {
-    const controls = { pause: vi.fn(), resume: vi.fn(), next: vi.fn(), stop: vi.fn() }
+    const controls = { pause: vi.fn(), resume: vi.fn(), prev: vi.fn(), next: vi.fn(), stop: vi.fn(), volume: 1, setVolume: vi.fn() }
     render(<NowPlayingBar status={buildStatus('ad_break')} controls={controls} />)
 
     expect(screen.getByText('Tanda')).toBeInTheDocument()

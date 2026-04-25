@@ -9,6 +9,7 @@ import AdBreaksPage from './pages/AdBreaksPage/AdBreaksPage'
 import ProgramsPage from './pages/ProgramsPage/ProgramsPage'
 import ProfilesPage from './pages/ProfilesPage/ProfilesPage'
 import IntegrationsPage from './pages/IntegrationsPage/IntegrationsPage'
+import AudioEffectsPage from './pages/AudioEffectsPage/AudioEffectsPage'
 import './styles/globals.css'
 
 export default function App() {
@@ -22,8 +23,11 @@ export default function App() {
       playoutControls={{
         pause: playout.pause,
         resume: playout.resume,
+        prev: playout.prev,
         next: playout.next,
-        stop: playout.stop
+        stop: playout.stop,
+        volume: playout.volume,
+        setVolume: playout.setVolume
       }}
     >
       <Routes>
@@ -33,13 +37,14 @@ export default function App() {
           element={
             <PlayoutPage
               activeProfile={profiles.activeProfile}
+              profiles={profiles}
               playout={playout}
             />
           }
         />
         <Route
           path="/playlists"
-          element={<PlaylistsPage activeProfile={profiles.activeProfile} />}
+          element={<PlaylistsPage activeProfile={profiles.activeProfile} playout={playout} />}
         />
         <Route
           path="/soundboard"
@@ -60,6 +65,10 @@ export default function App() {
         <Route
           path="/integrations"
           element={<IntegrationsPage profileId={profiles.activeProfile?.id ?? null} />}
+        />
+        <Route
+          path="/efectos"
+          element={<AudioEffectsPage activeProfile={profiles.activeProfile} />}
         />
       </Routes>
     </Layout>

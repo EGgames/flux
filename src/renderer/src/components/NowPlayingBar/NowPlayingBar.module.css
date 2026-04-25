@@ -91,3 +91,49 @@
   background: var(--color-panel-alt);
   color: var(--color-text-muted);
 }
+
+.volumeControl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.volumeIcon {
+  font-size: 14px;
+  cursor: default;
+  user-select: none;
+}
+
+.volumeSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-active);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.volumeSlider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.volumeLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  min-width: 30px;
+  text-align: right;
+}

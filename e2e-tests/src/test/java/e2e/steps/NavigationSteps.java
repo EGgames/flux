@@ -45,6 +45,24 @@ public class NavigationSteps {
             .isEqualTo(expectedTitle);
     }
 
+    @Then("debe ver un titulo que contiene {string}")
+    public void debeVerUnTituloQueContiene(String expectedFragment) {
+        WebElement heading = driver.findElement(By.xpath("//h1 | //h2"));
+        Assertions.assertThat(heading.getText())
+            .as("Titulo visible en la pagina contiene fragmento")
+            .containsIgnoringCase(expectedFragment);
+    }
+
+    @Then("debe ver el elemento con testid {string}")
+    public void debeVerElElementoConTestid(String testId) {
+        WebElement el = new WebDriverWait(driver, Duration.ofSeconds(10))
+            .until(ExpectedConditions.visibilityOfElementLocated(
+                By.cssSelector("[data-testid='" + testId + "']")));
+        Assertions.assertThat(el.isDisplayed())
+            .as("Elemento con data-testid='" + testId + "' visible")
+            .isTrue();
+    }
+
     private String baseUrl() {
         String property = System.getProperty("webdriver.base.url");
         if (property != null && !property.isBlank()) {
@@ -59,6 +77,6 @@ public class NavigationSteps {
 
     private void waitForTitle() {
         new WebDriverWait(driver, Duration.ofSeconds(10))
-            .until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h1")));
+            .until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h1 | //h2")));
     }
 }

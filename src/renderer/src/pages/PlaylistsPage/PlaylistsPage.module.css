@@ -16,11 +16,15 @@
 .listItemName { font-size: 13px; font-weight: 600; }
 .detailTitle { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
 .trackList { display: flex; flex-direction: column; gap: 4px; }
-.trackItem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius); border: 1px solid transparent; }
+.trackItem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius); border: 1px solid transparent; cursor: default; }
 .trackItem:hover { background: var(--color-panel-alt); }
-.trackPos { font-size: 11px; color: var(--color-text-muted); width: 20px; }
-.trackName { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trackDur { font-size: 11px; color: var(--color-text-muted); }
+.trackPlaying { background: var(--color-accent); border-color: var(--color-active) !important; }
+.trackPos { font-size: 11px; color: var(--color-text-muted); width: 20px; text-align: center; flex-shrink: 0; }
+.trackInfo { flex: 1; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+.trackName { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trackTags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--color-panel-alt); border: 1px solid var(--color-border); color: var(--color-text-muted); }
+.trackDur { font-size: 11px; color: var(--color-text-muted); flex-shrink: 0; }
 .empty { color: var(--color-text-muted); font-size: 13px; padding: 20px; text-align: center; }
 .form { display: flex; gap: 8px; }
 .input { flex: 1; }

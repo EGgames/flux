@@ -14,11 +14,11 @@ export function registerPlayoutIpc(
 ): void {
   ipcMain.handle(
     'playout:start',
-    async (_event, profileId: string, playlistId?: string) => {
+    async (_event, profileId: string, playlistId?: string, startIndex?: number) => {
       if (!playoutService) {
         playoutService = new PlayoutService(db, schedulerService, streamingService, win)
       }
-      return playoutService.start(profileId, playlistId)
+      return playoutService.start(profileId, playlistId, startIndex ?? 0)
     }
   )
 
@@ -55,6 +55,26 @@ export function registerPlayoutIpc(
 
   ipcMain.handle('playout:trigger-ad', async (_event, adBlockId: string) => {
     await playoutService?.triggerAdBlock(adBlockId)
+    return { success: true }
+  })
+
+  ipcMain.handle('playout:prev', () => {
+    playoutService?.prev()
+    return { success: true }
+  })
+
+  ipcMain.handle('playout:jump-to', (_event, index: number) => {
+    playoutService?.jumpTo(index)
+    return { success: true }
+  })
+
+  ipcMain.handle('playout:ad-end-ack', () => {
+    playoutService?.adBreakEnd()
+    return { success: true }
+  })
+
+  ipcMain.handle('playout:stop-ad', () => {
+    playoutService?.stopAdBreak()
     return { success: true }
   })
 

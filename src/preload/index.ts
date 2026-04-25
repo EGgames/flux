@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+// Map to track IPC wrapper functions so we can properly remove listeners
+const ipcListenerMap = new Map<(...args: unknown[]) => void, (...args: unknown[]) => void>()
+
 // Expose typed IPC API to renderer via contextBridge
 contextBridge.exposeInMainWorld('electronAPI', {
   // ── Profiles ──────────────────────────────────────────────
@@ -18,7 +21,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     import: (filePath: string) => ipcRenderer.invoke('audio-asset:import', filePath),
     importBatch: (filePaths: string[]) => ipcRenderer.invoke('audio-asset:import-batch', filePaths),
     remove: (id: string) => ipcRenderer.invoke('audio-asset:delete', id),
-    pickFiles: () => ipcRenderer.invoke('audio-asset:pick-files')
+    pickFiles: () => ipcRenderer.invoke('audio-asset:pick-files'),
+    updateFades: (assetId: string, fadeInMs: number | null, fadeOutMs: number | null) =>
+      ipcRenderer.invoke('audio-assets:update-fades', { assetId, fadeInMs, fadeOutMs })
+  },
+
+  // ── Audio Effects ──────────────────────────────────────────
+  audioEffects: {
+    get: (profileId: string) => ipcRenderer.invoke('audio-effects:get', profileId),
+    update: (payload: {
+      profileId: string
+      crossfadeEnabled?: boolean
+      crossfadeMs?: number
+      crossfadeCurve?: string
+    }) => ipcRenderer.invoke('audio-effects:update', payload)
   },
 
   // ── Playlists ──────────────────────────────────────────────
@@ -119,17 +135,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Playout ────────────────────────────────────────────────
   playout: {
-    start: (profileId: string, playlistId?: string) =>
-      ipcRenderer.invoke('playout:start', profileId, playlistId),
+    start: (profileId: string, playlistId?: string, startIndex?: number) =>
+      ipcRenderer.invoke('playout:start', profileId, playlistId, startIndex),
     syncProgram: (profileId: string, playlistId?: string | null) =>
       ipcRenderer.invoke('playout:sync-program', profileId, playlistId),
     stop: () => ipcRenderer.invoke('playout:stop'),
     pause: () => ipcRenderer.invoke('playout:pause'),
     resume: () => ipcRenderer.invoke('playout:resume'),
+    prev: () => ipcRenderer.invoke('playout:prev'),
     next: () => ipcRenderer.invoke('playout:next'),
+    jumpTo: (index: number) => ipcRenderer.invoke('playout:jump-to', index),
     getStatus: () => ipcRenderer.invoke('playout:status'),
     triggerAdBlock: (adBlockId: string) => ipcRenderer.invoke('playout:trigger-ad', adBlockId),
+    adEndAck: () => ipcRenderer.invoke('playout:ad-end-ack'),
+    stopAd: () => ipcRenderer.invoke('playout:stop-ad'),
     streamChunk: (chunk: ArrayBuffer) => ipcRenderer.invoke('playout:stream-chunk', chunk)
+  },
+
+  // ── Audio HTTP server port ────────────────────────────────────
+  audio: {
+    getServerPort: () => ipcRenderer.invoke('audio:server-port')
+  },
+
+  // ── Window Controls ───────────────────────────────────────────
+  windowControls: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close'),
+    isMaximized: () => ipcRenderer.invoke('window:is-maximized') as Promise<boolean>
   },
 
   // ── Events from Main to Renderer ───────────────────────────
@@ -139,15 +172,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'playout:state-changed',
       'playout:ad-start',
       'playout:ad-end',
+      'playout:ad-stop',
+      'playout:ad-pending',
       'playout:error',
+      'playout:queue-update',
       'scheduler:program-changed',
       'streaming:status-changed'
     ]
-    if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args))
-    }
+    if (!validChannels.includes(channel)) return
+    const wrapper = (_event: unknown, ...args: unknown[]) => callback(...args)
+    ipcListenerMap.set(callback, wrapper)
+    ipcRenderer.on(channel, wrapper)
   },
   off: (channel: string, callback: (...args: unknown[]) => void) => {
-    ipcRenderer.removeListener(channel, callback as never)
+    const wrapper = ipcListenerMap.get(callback)
+    if (wrapper) {
+      ipcRenderer.removeListener(channel, wrapper as never)
+      ipcListenerMap.delete(callback)
+    }
   }
 })

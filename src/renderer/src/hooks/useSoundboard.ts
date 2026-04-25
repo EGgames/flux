@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Howl } from 'howler'
 import type { SoundboardButton } from '../types/ipc.types'
 import { soundboardService } from '../services/soundboardService'
 
 export function useSoundboard(profileId: string | null) {
   const [buttons, setButtons] = useState<SoundboardButton[]>([])
   const [loading, setLoading] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [gridResetKey, setGridResetKey] = useState(0)
   const howlsRef = useRef<Map<number, Howl>>(new Map())
 
   const load = useCallback(async () => {
@@ -20,7 +23,7 @@ export function useSoundboard(profileId: string | null) {
   const assign = useCallback(
     async (
       slotIndex: number,
-      data: { audioAssetId?: string | null; label?: string; mode?: string; color?: string }
+      data: { audioAssetId?: string | null; label?: string; mode?: 'oneshot' | 'toggle' | 'loop'; color?: string }
     ) => {
       if (!profileId) return
       const updated = await soundboardService.assign(profileId, slotIndex, data)
@@ -39,7 +42,7 @@ export function useSoundboard(profileId: string | null) {
         const { mode, audioAsset } = result
         const src =
           audioAsset.sourceType === 'local'
-            ? `local-audio://${encodeURIComponent(audioAsset.sourcePath.replace(/\\/g, '/'))}`
+            ? `local-audio://?p=${encodeURIComponent(audioAsset.sourcePath)}`
             : audioAsset.sourcePath
 
         const existing = howlsRef.current.get(slotIndex)
@@ -61,5 +64,22 @@ export function useSoundboard(profileId: string | null) {
     [profileId]
   )
 
-  return { buttons, loading, assign, trigger, reload: load }
+  const stopAll = useCallback(() => {
+    howlsRef.current.forEach((h) => h.stop())
+    howlsRef.current.clear()
+    setIsPaused(false)
+    setGridResetKey((k) => k + 1)
+  }, [])
+
+  const pauseAll = useCallback(() => {
+    howlsRef.current.forEach((h) => { if (h.playing()) h.pause() })
+    setIsPaused(true)
+  }, [])
+
+  const resumeAll = useCallback(() => {
+    howlsRef.current.forEach((h) => h.play())
+    setIsPaused(false)
+  }, [])
+
+  return { buttons, loading, assign, trigger, reload: load, stopAll, pauseAll, resumeAll, isPaused, gridResetKey }
 }

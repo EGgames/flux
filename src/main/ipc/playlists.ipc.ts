@@ -51,6 +51,14 @@ export function registerPlaylistIpc(db: PrismaClient): void {
   })
 
   ipcMain.handle('playlist:reorder', async (_event, playlistId: string, itemIds: string[]) => {
+    // Validate that all items belong to the given playlist before reordering
+    const items = await db.playlistItem.findMany({
+      where: { id: { in: itemIds }, playlistId },
+      select: { id: true }
+    })
+    if (items.length !== itemIds.length) {
+      throw new Error('Algunos items no pertenecen a la playlist indicada')
+    }
     for (let i = 0; i < itemIds.length; i++) {
       await db.playlistItem.update({
         where: { id: itemIds[i] },

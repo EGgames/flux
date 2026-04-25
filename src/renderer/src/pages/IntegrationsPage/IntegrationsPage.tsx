@@ -37,12 +37,14 @@ function parseConfig<T>(json: string, fallback: T): T {
 const DEFAULT_ICECAST: IcecastConfig = { host: '', port: '8000', mountpoint: '/stream', username: 'source', password: '' }
 const DEFAULT_SHOUTCAST: ShoutcastConfig = { host: '', port: '8000', password: '', stationId: '1' }
 const DEFAULT_LOCAL: LocalOutputConfig = { deviceId: 'default', deviceName: 'Salida del sistema (default)' }
+const DEFAULT_MONITOR: LocalOutputConfig = { deviceId: 'default', deviceName: 'Salida del sistema (default)' }
 
 export default function IntegrationsPage({ profileId }: Props) {
   const [outputs, setOutputs] = useState<OutputIntegration[]>([])
   const [icecastCfg, setIcecastCfg] = useState<IcecastConfig>(DEFAULT_ICECAST)
   const [shoutcastCfg, setShoutcastCfg] = useState<ShoutcastConfig>(DEFAULT_SHOUTCAST)
   const [localCfg, setLocalCfg] = useState<LocalOutputConfig>(DEFAULT_LOCAL)
+  const [monitorCfg, setMonitorCfg] = useState<LocalOutputConfig>(DEFAULT_MONITOR)
   const [devices, setDevices] = useState<AudioOutputDevice[]>([])
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
   const [saving, setSaving] = useState(false)
@@ -50,9 +52,18 @@ export default function IntegrationsPage({ profileId }: Props) {
   const local = outputs.find((o) => o.outputType === 'local')
   const icecast = outputs.find((o) => o.outputType === 'icecast')
   const shoutcast = outputs.find((o) => o.outputType === 'shoutcast')
+  const monitor = outputs.find((o) => o.outputType === 'monitor')
 
   useEffect(() => {
     const loadDevices = async () => {
+      // Sin getUserMedia los deviceId son opacos/anonimizados y los labels vacios.
+      // Pedimos permiso una vez para desbloquear deviceIds reales y persistentes.
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+      } catch {
+        // El usuario nego el permiso o no hay micro. Igual intentamos enumerar.
+      }
       try {
         const mediaDevices = await navigator.mediaDevices.enumerateDevices()
         const audioOutputs = mediaDevices
@@ -79,8 +90,47 @@ export default function IntegrationsPage({ profileId }: Props) {
       if (lc) setLocalCfg(parseConfig(lc.config, DEFAULT_LOCAL))
       if (ic) setIcecastCfg(parseConfig(ic.config, DEFAULT_ICECAST))
       if (sc) setShoutcastCfg(parseConfig(sc.config, DEFAULT_SHOUTCAST))
+      const mc = data.find((o) => o.outputType === 'monitor')
+      if (mc) setMonitorCfg(parseConfig(mc.config, DEFAULT_MONITOR))
     })
   }, [profileId])
+
+  const notifyOutputsChanged = () => {
+    if (!profileId) return
+    window.dispatchEvent(new CustomEvent('flux:outputs-changed', { detail: { profileId } }))
+  }
+
+  // Autoguardar local al cambiar el device (sin requerir click en Guardar).
+  const handleLocalDeviceChange = async (deviceId: string) => {
+    const selected = devices.find((d) => d.deviceId === deviceId)
+    const cfg = { deviceId, deviceName: selected?.label ?? 'Salida del sistema (default)' }
+    setLocalCfg(cfg)
+    if (!profileId) return
+    const saved = await outputService.save({
+      profileId,
+      outputType: 'local',
+      config: JSON.stringify(cfg),
+      enabled: local?.enabled ?? true
+    })
+    setOutputs((prev) => [...prev.filter((o) => o.outputType !== 'local'), saved])
+    notifyOutputsChanged()
+  }
+
+  // Autoguardar monitor al cambiar el device. Habilita monitor por defecto la primera vez.
+  const handleMonitorDeviceChange = async (deviceId: string) => {
+    const selected = devices.find((d) => d.deviceId === deviceId)
+    const cfg = { deviceId, deviceName: selected?.label ?? 'Salida del sistema (default)' }
+    setMonitorCfg(cfg)
+    if (!profileId) return
+    const saved = await outputService.save({
+      profileId,
+      outputType: 'monitor',
+      config: JSON.stringify(cfg),
+      enabled: monitor?.enabled ?? true
+    })
+    setOutputs((prev) => [...prev.filter((o) => o.outputType !== 'monitor'), saved])
+    notifyOutputsChanged()
+  }
 
   const handleSaveLocal = async () => {
     if (!profileId) return
@@ -96,6 +146,7 @@ export default function IntegrationsPage({ profileId }: Props) {
       return [...filtered, saved]
     })
     setSaving(false)
+    notifyOutputsChanged()
   }
 
   const handleSaveIcecast = async () => {
@@ -120,6 +171,23 @@ export default function IntegrationsPage({ profileId }: Props) {
     setSaving(false)
   }
 
+  const handleSaveMonitor = async () => {
+    if (!profileId) return
+    setSaving(true)
+    const saved = await outputService.save({
+      profileId,
+      outputType: 'monitor',
+      config: JSON.stringify(monitorCfg),
+      enabled: monitor?.enabled ?? true
+    })
+    setOutputs((prev) => {
+      const filtered = prev.filter((o) => o.outputType !== 'monitor')
+      return [...filtered, saved]
+    })
+    setSaving(false)
+    notifyOutputsChanged()
+  }
+
   const handleTest = async (id: string) => {
     const result = await outputService.test(id)
     setTestResults((prev) => ({ ...prev, [id]: result }))
@@ -128,6 +196,7 @@ export default function IntegrationsPage({ profileId }: Props) {
   const handleToggle = async (id: string, enabled: boolean) => {
     const updated = await outputService.toggleEnabled(id, enabled)
     setOutputs((prev) => prev.map((o) => (o.id === id ? updated : o)))
+    notifyOutputsChanged()
   }
 
   const getStatus = (output: OutputIntegration | undefined) => {
@@ -165,13 +234,7 @@ export default function IntegrationsPage({ profileId }: Props) {
             <label className={styles.label}>Dispositivo de salida</label>
             <select
               value={localCfg.deviceId}
-              onChange={(e) => {
-                const selected = devices.find((device) => device.deviceId === e.target.value)
-                setLocalCfg({
-                  deviceId: e.target.value,
-                  deviceName: selected?.label ?? 'Salida del sistema (default)'
-                })
-              }}
+              onChange={(e) => { void handleLocalDeviceChange(e.target.value) }}
             >
               <option value="default">Salida del sistema (default)</option>
               {devices.map((device) => (
@@ -189,6 +252,43 @@ export default function IntegrationsPage({ profileId }: Props) {
             {testResults[local.id].message}
           </div>
         )}
+      </div>
+
+      {/* Monitor de Audio */}
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>
+          <span className={`${styles.statusDot} ${monitor?.enabled ? styles.connected : ''}`} />
+          Monitor de audio
+          {monitor && (
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                className={styles.checkbox}
+                checked={monitor.enabled}
+                onChange={(e) => handleToggle(monitor.id, e.target.checked)}
+              />
+              Habilitado
+            </label>
+          )}
+        </div>
+        <p className={styles.monitorHint}>Dispositivo secundario para escuchar la salida en cabina (auriculares o monitores de estudio).</p>
+        <div className={styles.fields}>
+          <div className={styles.field}>
+            <label className={styles.label}>Dispositivo de monitoreo</label>
+            <select
+              value={monitorCfg.deviceId}
+              onChange={(e) => { void handleMonitorDeviceChange(e.target.value) }}
+            >
+              <option value="default">Salida del sistema (default)</option>
+              {devices.map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className={styles.actions}>
+          <button className={styles.btnPrimary} onClick={handleSaveMonitor} disabled={saving}>Guardar</button>
+        </div>
       </div>
 
       {/* Icecast */}

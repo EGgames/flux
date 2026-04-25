@@ -23,6 +23,7 @@ interface PlayoutStatus {
 
 export class PlayoutService {
   private state: PlayoutState = 'stopped'
+  private prevAdState: PlayoutState = 'stopped'
   private profileId: string | null = null
   private queue: Array<{
     id: string
@@ -33,6 +34,7 @@ export class PlayoutService {
   }> = []
   private queueIndex = 0
   private songsSinceLastAd = 0
+  private pendingAdBlockId: string | null = null
   private adRuleInterval: NodeJS.Timeout | null = null
 
   private async resolveCurrentPlaylist(profileId: string): Promise<Array<{
@@ -76,12 +78,16 @@ export class PlayoutService {
 
   constructor(
     private db: PrismaClient,
-    private schedulerService: SchedulerService,
-    private streamingService: StreamingService,
+    schedulerService: SchedulerService,
+    streamingService: StreamingService,
     private win: BrowserWindow
-  ) {}
+  ) {
+    // Reserved for future cross-service coordination (program changes, live streaming).
+    void schedulerService
+    void streamingService
+  }
 
-  async start(profileId: string, playlistId?: string): Promise<PlayoutStatus> {
+  async start(profileId: string, playlistId?: string, startIndex = 0): Promise<PlayoutStatus> {
     this.profileId = profileId
     this.state = 'playing'
     this.songsSinceLastAd = 0
@@ -96,7 +102,7 @@ export class PlayoutService {
       this.queue = await this.resolveCurrentPlaylist(profileId)
     }
 
-    this.queueIndex = 0
+    this.queueIndex = Math.min(Math.max(0, startIndex), Math.max(0, this.queue.length - 1))
     this.emitStateChange()
     this.emitTrackChange()
     this.startSongCountWatcher(profileId)
@@ -119,23 +125,67 @@ export class PlayoutService {
   }
 
   async stop(): Promise<void> {
+    const profileId = this.profileId
     this.state = 'stopped'
     this.queue = []
     this.queueIndex = 0
     this.profileId = null
     this.clearSongCountWatcher()
     this.emitStateChange()
-    await this.db.playoutEvent.create({
-      data: { profileId: this.profileId, eventType: 'stop', payload: '{}' }
-    })
+    if (profileId) {
+      await this.db.playoutEvent.create({
+        data: { profileId, eventType: 'stop', payload: '{}' }
+      })
+    }
+  }
+
+  jumpTo(index: number): void {
+    if (this.queue.length === 0) return
+    const clamped = Math.min(Math.max(0, index), this.queue.length - 1)
+    this.queueIndex = clamped
+    this.emitTrackChange()
+  }
+
+  prev(): void {
+    if (this.queue.length === 0) return
+    const prevIndex = this.queueIndex - 1
+    if (prevIndex < 0) return
+    this.queueIndex = prevIndex
+    this.emitTrackChange()
   }
 
   async next(): Promise<void> {
     if (this.queue.length === 0) return
-    this.queueIndex = (this.queueIndex + 1) % this.queue.length
+
+    // If a time-based ad block is pending, fire it at this song boundary
+    if (this.pendingAdBlockId) {
+      const pendingId = this.pendingAdBlockId
+      this.pendingAdBlockId = null
+      // Advance to the next track so it plays after the ads finish
+      const ni = this.queueIndex + 1
+      this.queueIndex = ni < this.queue.length ? ni : 0
+      this.songsSinceLastAd = 0
+      await this.triggerAdBlock(pendingId)
+      return
+    }
+
+    const nextIndex = this.queueIndex + 1
+    if (nextIndex >= this.queue.length) {
+      this.state = 'stopped'
+      this.queueIndex = 0
+      this.clearSongCountWatcher()
+      this.emitStateChange()
+      return
+    }
+    this.queueIndex = nextIndex
     this.songsSinceLastAd++
-    this.emitTrackChange()
+
+    // Check song-count rules BEFORE emitting track-changed so that if an ad
+    // fires, adBreakEnd() handles emitting the next track (no race condition)
     await this.checkSongCountRules()
+    if (this.state === 'playing') {
+      this.emitTrackChange()
+    }
   }
 
   async syncProgram(profileId: string, playlistId?: string | null): Promise<PlayoutStatus> {
@@ -170,7 +220,7 @@ export class PlayoutService {
     })
     if (!block) throw new Error('Tanda no encontrada')
 
-    const prevState = this.state
+    this.prevAdState = this.state
     this.state = 'ad_break'
     this.win.webContents.send('playout:ad-start', { block })
     this.emitStateChange()
@@ -182,16 +232,36 @@ export class PlayoutService {
         payload: JSON.stringify({ adBlockId, name: block.name })
       }
     })
+  }
 
-    // Renderer handles the actual playback; we restore state after ad_end signal
-    this.win.webContents.once('ipc-message', (_e, channel) => {
-      if (channel === 'playout:ad-end-ack') {
-        this.state = prevState
-        this.songsSinceLastAd = 0
-        this.emitStateChange()
-        this.win.webContents.send('playout:ad-end', {})
-      }
-    })
+  adBreakEnd(): void {
+    const nextState: PlayoutState = this.prevAdState === 'stopped' ? 'stopped' : 'playing'
+    this.state = nextState
+    this.songsSinceLastAd = 0
+    this.emitStateChange()
+    this.win.webContents.send('playout:ad-end', {})
+    if (nextState === 'playing') {
+      this.emitTrackChange()
+    }
+  }
+
+  /**
+   * Detiene una tanda en curso. Le pide al renderer que aborte la cadena de
+   * audios de la tanda y el propio renderer responde con `adEndAck` que
+   * dispara `adBreakEnd()` y devuelve el estado a `prevAdState`.
+   */
+  stopAdBreak(): void {
+    if (this.state !== 'ad_break') return
+    this.win.webContents.send('playout:ad-stop', {})
+    if (this.profileId) {
+      void this.db.playoutEvent.create({
+        data: {
+          profileId: this.profileId,
+          eventType: 'ad_stop',
+          payload: '{}'
+        }
+      }).catch((e: unknown) => log.warn('[playout] ad_stop log failed', e))
+    }
   }
 
   getStatus(): PlayoutStatus {
@@ -231,6 +301,7 @@ export class PlayoutService {
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
       const rules = await this.db.adRule.findMany({
         where: { profileId, triggerType: 'time', enabled: true },
+        include: { adBlock: true },
         orderBy: { priority: 'desc' }
       })
       for (const rule of rules) {
@@ -243,7 +314,7 @@ export class PlayoutService {
 
         // Legacy format compatibility: triggerConfig = "HH:MM"
         if (typeof config === 'string' && config === timeStr) {
-          await this.triggerAdBlock(rule.adBlockId)
+          this.schedulePendingAdBlock(rule.adBlockId, rule.adBlock?.name ?? 'Tanda')
           break
         }
 
@@ -254,17 +325,23 @@ export class PlayoutService {
         const ruleDay = typeof typedConfig.dayOfWeek === 'number' ? typedConfig.dayOfWeek : null
         const ruleTime = typeof typedConfig.time === 'string' ? typedConfig.time : null
         if (ruleTime && ruleDay !== null && ruleDay === dayOfWeek && ruleTime === timeStr) {
-          await this.triggerAdBlock(rule.adBlockId)
+          this.schedulePendingAdBlock(rule.adBlockId, rule.adBlock?.name ?? 'Tanda')
           break
         }
 
         // Previous JSON format compatibility: { time: "HH:MM" }
         if (ruleTime && ruleDay === null && ruleTime === timeStr) {
-          await this.triggerAdBlock(rule.adBlockId)
+          this.schedulePendingAdBlock(rule.adBlockId, rule.adBlock?.name ?? 'Tanda')
           break
         }
       }
     }, 60_000)
+  }
+
+  private schedulePendingAdBlock(adBlockId: string, name: string): void {
+    this.pendingAdBlockId = adBlockId
+    this.win.webContents.send('playout:ad-pending', { adBlockId, name })
+    log.info(`[PlayoutService] Tanda programada al fin del tema: "${name}" (${adBlockId})`)
   }
 
   private clearSongCountWatcher(): void {
@@ -281,7 +358,15 @@ export class PlayoutService {
   private emitTrackChange(): void {
     const track = this.queue[this.queueIndex] ?? null
     if (track) {
-      this.win.webContents.send('playout:track-changed', { track })
+      this.win.webContents.send('playout:track-changed', {
+        track,
+        queueIndex: this.queueIndex,
+        queueLength: this.queue.length
+      })
+      this.win.webContents.send('playout:queue-update', {
+        queue: this.queue,
+        queueIndex: this.queueIndex
+      })
     }
   }
 }
