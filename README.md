@@ -1,6 +1,6 @@
 # flux
 
-Radio automation desktop software con playout local, programación de tandas, soundboard, ecualizador paramétrico y monitoreo en tiempo real.
+Radio automation desktop software con playout local, programación de tandas, soundboard, ecualizador paramétrico, mixer DJ, VU meter estéreo y monitoreo en tiempo real.
 
 ---
 
@@ -21,6 +21,7 @@ Radio automation desktop software con playout local, programación de tandas, so
   - [Programs / Scheduler](#programs--scheduler)
   - [Streaming Icecast/Shoutcast](#streaming-icecastshoutcast)
   - [Salidas de audio (sinkId + Monitor)](#salidas-de-audio-sinkid--monitor)
+  - [VU Meter estéreo](#vu-meter-estéreo)
   - [Profiles](#profiles)
 - [Testing](#testing)
 - [Documentación adicional](#documentación-adicional)
@@ -38,7 +39,9 @@ Radio automation desktop software con playout local, programación de tandas, so
 - **Streaming** a servidores Icecast / Shoutcast.
 - **Profiles** independientes (cada perfil tiene su biblioteca, EQ, layout y configuración).
 - **Workspace personalizable**: paneles arrastrables y persistidos en `localStorage`.
-- **Multi-output en vivo**: enrutado de la reproducción a una **salida principal** y un **monitor de cabina** independiente, ambos cambiables al instante sin detener el track (`HTMLMediaElement.setSinkId`). Los `deviceId` reales requieren permiso de audio (`media`), otorgado automáticamente por el proceso main.
+- **Multi-output en vivo**: enrutado de la reproducción a una **salida principal** y un **monitor de cabina** independiente, ambos cambiables al instante sin detener el track (`HTMLMediaElement.setSinkId`). Los `deviceId` reales requieren permiso de audio (`media`), otorgado automáticamente por el proceso main. Self-healing: si Chromium pausa el `<audio>` tras un `setSinkId` fallido, el hook lo reanuda automáticamente y existe un botón **"Reaplicar salidas"** en el panel VU como recurso manual.
+- **VU Meter estéreo** (L/R) en dBFS con zonas verde / amarillo / rojo, basado en `AnalyserNode` del Web Audio API. Las lecturas se cuantizan a 1 dB para evitar re-renders por frame.
+- **Workspace personalizable**: paneles arrastrables, redimensionables y persistidos por perfil (en DB). Botón **Auto-ajustar** que reorganiza automáticamente la grilla con márgenes cómodos.
 
 ---
 
@@ -176,7 +179,20 @@ Gestión del enrutado de audio hacia tarjetas físicas configurada en `Integrati
 | Permisos | Main process otorga `media` automáticamente (`setPermissionRequestHandler`). Sin esto, Chromium devuelve `deviceId` opacos y `setSinkId` rechaza con `NotFoundError`. |
 | Hot-reload | `IntegrationsPage` autoguarda al cambiar el dropdown y despacha `window.dispatchEvent(new CustomEvent('flux:outputs-changed'))`. `usePlayout` escucha y reaplica `setSinkId` al Howl actual + crea/destruye `monitorHowl` sin reiniciar el track. |
 | Resiliencia | `setSinkId` reintenta hasta 3 veces con 120ms de espera (cubre `AbortError` cuando el `<audio>` aún no adjuntó el src). Éxito parcial sobre el pool html5 de Howler se considera éxito (basta con un nodo enrutado). |
+| Auto-recovery | Tras cada `setSinkId` y en el tick de 1 Hz, si el `<audio>` quedó `paused && !ended` se reanuda solo (`audioEl.play()`). Sin esto, un `setSinkId` fallido congelaba la barra de tiempo y dejaba sin audio. |
+| Recovery manual | Botón **"Reaplicar salidas"** en el panel VU del workspace de Playout invoca `reapplyOutputs()` que re-lee Local + Monitor desde DB y reaplica `setSinkId` al Howl actual sin reiniciar el track. |
 | Logs | Cada cambio se registra en el panel: `Salida principal -> XXXXX…`, `Monitor -> XXXXX…` o `setSinkId fallo (NotFoundError: …)`. |
+
+### VU Meter estéreo
+
+Medidor de niveles L/R en dBFS, integrado como panel del workspace de Playout.
+
+| Pieza | Detalle |
+|---|---|
+| Análisis | Dos `AnalyserNode` (uno por canal) conectados a un `ChannelSplitterNode` que toma la salida de la cadena del EQ. |
+| Escala | dBFS con piso `-Infinity` y techo 0 dB. Zonas: verde (≤-18), amarillo (-18 a -6), rojo (>-6). |
+| Performance | Loop `requestAnimationFrame` ~30 fps. Las lecturas se cuantizan a entero (1 dB) y `setVuLevels` solo dispara si cambia el valor: evita re-render storm en `usePlayout` y `PlayoutPage`. |
+| Componente | [`src/renderer/src/components/VUMeter/VUMeter.tsx`](src/renderer/src/components/VUMeter/VUMeter.tsx) |
 
 ### Profiles
 
