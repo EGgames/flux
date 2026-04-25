@@ -1,265 +1,196 @@
-# ASDD Framework — Guía de Uso (GitHub Copilot)
+# flux
 
-**ASDD** (Agent Spec Software Development) es un framework de desarrollo asistido por IA que organiza el trabajo de software en cinco fases orquestadas por agentes especializados.
+Software de automatización de radio para escritorio. Playout local, programación de tandas y programas, soundboard, salidas de audio múltiples y monitoreo en tiempo real.
 
-```
-Requerimiento → Spec → [Backend ∥ Frontend ∥ DB] → [Tests BE ∥ Tests FE] → QA → Doc (opcional)
-```
+---
 
-> Esta guía cubre el uso con **GitHub Copilot Chat** en VS Code.
-> Para uso con **Claude Code CLI**, ver `.claude/README.md`.
+## Tabla de Contenidos
+
+- [Características](#características)
+- [Stack](#stack)
+- [Requisitos](#requisitos)
+- [Instalación](#instalación)
+- [Scripts](#scripts)
+- [Arquitectura](#arquitectura)
+- [Módulos](#módulos)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Testing](#testing)
+- [Build de distribución](#build-de-distribución)
+
+---
+
+## Características
+
+- **Playout** continuo de playlists con cola dinámica, avance automático y barra de progreso real basada en duración probada por `ffprobe`.
+- **Workspace personalizable**: paneles arrastrables y redimensionables, persistidos por perfil.
+- **Tandas (Ad Blocks)** disparables por hora del día o cada N tracks reproducidos.
+- **Programas** con expresiones cron (`node-cron`) que activan playlists automáticamente.
+- **Soundboard** con grilla de botones de disparo rápido y polifonía.
+- **Múltiples perfiles** independientes (cada uno con su biblioteca, layout, configuración de outputs).
+- **Salidas de audio en vivo**: enrutado a una salida principal y un monitor de cabina opcional, ambos configurables al instante sin detener el track (`HTMLMediaElement.setSinkId`).
+- **Streaming** a servidores Icecast / Shoutcast.
+- **Panel de Logs** integrado con eventos en tiempo real (track inicio/fin, tandas, errores, cambios de salida).
+
+---
+
+## Stack
+
+| Capa | Tecnología |
+|---|---|
+| Desktop shell | Electron 33 |
+| UI | React 19 + Vite 6 (electron-vite 2.3) |
+| Lenguaje | TypeScript 5.7 (strict) |
+| Estilos | CSS Modules |
+| DB local | SQLite + Prisma 5.22 |
+| Audio | Web Audio API + Howler.js 2.2 |
+| Scheduling | node-cron 3.0 |
+| Streaming | HTTP `PUT/SOURCE` a Icecast / Shoutcast |
+| Tests unitarios | Vitest 2.1 + Testing Library + jsdom |
+| Tests E2E | Serenity BDD + Cucumber |
 
 ---
 
 ## Requisitos
 
-| Requisito | Detalle |
+- **Node.js** ≥ 20 LTS
+- **npm** ≥ 10
+- **FFmpeg / ffprobe** en `PATH` (para detectar duraciones reales de los audios)
+- **Java 17+** y **Maven 3.9+** sólo si vas a correr los tests E2E
+
+---
+
+## Instalación
+
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run dev
+```
+
+El primer arranque crea la base SQLite en `%APPDATA%\flux\flux.db` (Windows) o equivalente del SO.
+
+---
+
+## Scripts
+
+| Script | Descripción |
 |---|---|
-| VS Code | Cualquier versión reciente |
-| GitHub Copilot Chat | Extensión instalada y activa |
-| Setting habilitado | `github.copilot.chat.codeGeneration.useInstructionFiles: true` |
-
-El archivo `.vscode/settings.json` ya configura el auto-descubrimiento de agentes, skills e instructions. Si no existe, créalo con las rutas correspondientes a `.github/`.
-
----
-
-## Onboarding — nuevo proyecto
-
-Al copiar `.github/` y `docs/` a un proyecto nuevo, completa estos archivos **en orden** antes de usar cualquier agente:
-
-| # | Archivo | Qué escribir |
-|---|---------|-------------|
-| 1 | `README.md` (raíz del proyecto) | Stack, arquitectura, comandos (`install`, `dev`, `test`, `build`), variables de entorno |
-| 2 | `.claude/rules/backend.md + frontend.md` | Lenguaje, framework, base de datos, herramientas aprobadas |
-| 3 | `.claude/rules/backend.md + frontend.md` | Capas, módulos, bounded contexts |
-| 4 | `CLAUDE.md (Diccionario de Dominio)` | Términos canónicos del negocio (glosario) |
-| 5 | `CLAUDE.md` (DoR + DoD ya incluidos) | Criterios DoR y DoD del equipo |
-
-Una vez completados, los agentes tienen todo el contexto para operar de forma autónoma.
-
-**No modificar**: `agents/`, `skills/`, `instructions/`, `.github/docs/lineamientos/`, `copilot-instructions.md`, `AGENTS.md`
+| `npm run dev` | Levanta Electron en modo desarrollo (HMR) |
+| `npm run build` | Build de producción (electron-vite) |
+| `npm run pack` | Empaqueta sin instalador (carpeta `dist/`) |
+| `npm run dist` | Empaqueta instalador completo (electron-builder) |
+| `npm run dist:win` | Empaqueta instalador para Windows |
+| `npm run test` | Vitest run (one-shot) |
+| `npm run test:watch` | Vitest watch |
+| `npm run test:coverage` | Vitest con coverage v8 |
+| `npm run e2e:serenity` | Suite E2E (Serenity + Cucumber) |
+| `npm run e2e:serenity:report` | Agrega el reporte HTML de Serenity |
 
 ---
 
-## El flujo ASDD paso a paso
+## Arquitectura
 
-### Paso 1 — Spec (obligatorio, siempre primero)
+Electron multi-proceso con tres capas TypeScript estrictas:
 
-Genera la especificación técnica antes de escribir código:
+- **Main** ([`src/main/`](src/main)) — acceso a DB vía Prisma, IPC handlers, services de playout / scheduler / streaming, servidor HTTP local que sirve archivos de audio con CORS habilitado.
+- **Preload** ([`src/preload/`](src/preload)) — expone `window.electronAPI` con tipado estricto al renderer.
+- **Renderer** ([`src/renderer/src/`](src/renderer/src)) — React app con hooks por dominio, services delgados envolviendo IPC, páginas y componentes con CSS Modules.
 
-```
-@Spec Generator genera la spec para: [tu requerimiento]
-```
-```
-/generate-spec <nombre-feature>
-```
-
-El agente valida el requerimiento y genera `specs/<feature>.spec.md` con estado `DRAFT`.
-Revisa y aprueba la spec (cambia a `APPROVED`) antes de continuar.
-
----
-
-### Paso 2 — Implementación (paralelo)
-
-Con la spec `APPROVED`, lanza backend, frontend y base de datos en paralelo:
+Flujo IPC:
 
 ```
-@Backend Developer implementa specs/<feature>.spec.md
-@Frontend Developer implementa specs/<feature>.spec.md
-@Database Agent diseña el modelo de datos para specs/<feature>.spec.md
-```
-
-O con el Orchestrator para coordinar todo automáticamente:
-```
-@Orchestrator ejecuta el flujo completo para: [tu requerimiento]
-```
-
-> **Database Agent** solo es necesario si hay cambios en el modelo de datos.
-
----
-
-### Paso 3 — Tests (paralelo)
-
-Con la implementación completa, genera los tests:
-
-```
-@Test Engineer Backend genera tests para specs/<feature>.spec.md
-@Test Engineer Frontend genera tests para specs/<feature>.spec.md
-```
-```
-/unit-testing <nombre-feature>
+Page → Hook (estado + acciones) → service (cliente IPC)
+     → window.electronAPI (preload bridge)
+     → *.ipc.ts (handler) → Prisma / Service
 ```
 
 ---
 
-### Paso 4 — QA
+## Módulos
 
-Con tests completos, ejecuta la estrategia QA:
-
-```
-@QA Agent ejecuta QA para specs/<feature>.spec.md
-```
-
-El agente genera: casos Gherkin, matriz de riesgos y (si hay SLAs) plan de performance.
-
----
-
-### Paso 5 — Documentación *(opcional)*
-
-Al cerrar el feature:
-
-```
-@Documentation Agent documenta el feature specs/<feature>.spec.md
-```
-
----
-
-### Flujo completo con Orchestrator
-
-```
-@Orchestrator ejecuta el flujo completo para: [tu requerimiento]
-```
-```
-/asdd-orchestrate <nombre-feature>
-```
-
----
-
-## Agentes disponibles (`@nombre` en Copilot Chat)
-
-| Agente | Fase | Cuándo usarlo |
+| Módulo | Página | Hook |
 |---|---|---|
-| `@Orchestrator` | Entry point | Coordinar el flujo completo (`/asdd-orchestrate status` para ver estado) |
-| `@Spec Generator` | Fase 1 | Validar un requerimiento y generar su spec técnica |
-| `@Backend Developer` | Fase 2 ∥ | Implementar el backend según la spec |
-| `@Frontend Developer` | Fase 2 ∥ | Implementar el frontend según la spec |
-| `@Database Agent` | Fase 2 ∥ | Diseñar modelos de datos, migrations y seeders |
-| `@Test Engineer Backend` | Fase 3 ∥ | Generar tests para el backend (paralelo con Frontend) |
-| `@Test Engineer Frontend` | Fase 3 ∥ | Generar tests para el frontend (paralelo con Backend) |
-| `@QA Agent` | Fase 4 | Gherkin, riesgos y análisis de performance |
-| `@Documentation Agent` | Fase 5 | README, API docs y ADRs |
+| Playout | `PlayoutPage` | `usePlayout` |
+| Playlists | `PlaylistsPage` | — |
+| Soundboard | `SoundboardPage` | `useSoundboard` |
+| Ad Blocks (tandas) | `AdBreaksPage` | — |
+| Programs (cron) | `ProgramsPage` | `usePrograms` |
+| Integraciones (salidas + streaming) | `IntegrationsPage` | — |
+| Profiles | `ProfilesPage` | `useProfiles` |
+
+### Salidas de audio (sinkId + Monitor)
+
+- **Salida principal**: el `<audio>` del Howl actual se rutea via `setSinkId(deviceId)` al device elegido. `default` = sink del sistema.
+- **Monitor**: Howl secundario opcional que reproduce el mismo source en paralelo en otro device (uso típico: auriculares de cabina).
+- **Permisos**: el proceso main otorga `media` automáticamente (`setPermissionRequestHandler`) para que Chromium devuelva los `deviceId` reales.
+- **Hot-reload**: `IntegrationsPage` autoguarda y dispara `flux:outputs-changed`; `usePlayout` reaplica `setSinkId` sin reiniciar el track.
+
+### Tandas (Ad Blocks)
+
+Bloques de avisos disparables por hora exacta (con o sin día de la semana) o cada N tracks. El scheduler espera al final del track actual antes de inyectar el bloque.
+
+### Programs (Scheduler)
+
+Programación con expresiones cron via `node-cron`. Cada programa apunta a una playlist y se activa automáticamente.
+
+### Streaming
+
+`streamingService` empaqueta el audio del playout y lo envía por HTTP `PUT` (Icecast 2) o `SOURCE` (Shoutcast / Icecast 1).
 
 ---
 
-## Skills disponibles (`/comando` en Copilot Chat)
-
-| Comando | Agente | Qué hace |
-|---|---|---|
-| `/asdd-orchestrate` | Orchestrator | Orquesta el flujo completo o muestra estado actual |
-| `/generate-spec` | Spec Generator | Genera spec técnica con validación INVEST/IEEE 830 |
-| `/implement-backend` | Backend Developer | Implementa feature completo en el backend |
-| `/implement-frontend` | Frontend Developer | Implementa feature completo en el frontend |
-| `/unit-testing` | Test Engineers | Genera suite de tests (backend + frontend) |
-| `/gherkin-case-generator` | QA Agent | Flujos críticos + casos Given-When-Then + datos de prueba |
-| `/risk-identifier` | QA Agent | Matriz de riesgos ASD (Alto/Medio/Bajo) |
-| `/automation-flow-proposer` | QA Agent | Propone flujos a automatizar con estimación de ROI |
-| `/performance-analyzer` | QA Agent | Planifica pruebas de carga y performance |
-
----
-
-## Prompts disponibles (`/nombre` en Copilot Chat)
-
-Alternativa rápida a invocar agentes directamente:
-
-| Comando | Cuándo usarlo |
-|---|---|
-| `/generate-spec` | Crear una nueva spec desde un requerimiento |
-| `/backend-task` | Implementar una spec en el backend |
-| `/frontend-task` | Implementar una spec en el frontend |
-| `/db-task` | Diseñar esquema de datos, migrations y seeders |
-| `/generate-tests` | Generar tests para una spec o módulo existente |
-| `/qa-task` | Ejecutar el flujo QA (Gherkin + riesgos + performance) |
-| `/doc-task` | Generar documentación técnica del feature |
-| `/full-flow` | Orquestar todas las fases de principio a fin |
-
----
-
-## Instructions automáticas (sin intervención manual)
-
-Inyectadas automáticamente por Copilot cuando el archivo activo coincide:
-
-| Archivo activo | Instructions aplicadas |
-|---|---|
-| `backend/**/*.py` (o equivalente) | `instructions/backend.instructions.md` |
-| `frontend/src/**/*.{js,jsx}` (o equivalente) | `instructions/frontend.instructions.md` |
-| `backend/tests/**` / `frontend/src/__tests__/**` | `instructions/tests.instructions.md` |
-
-> Si el proyecto usa otro stack, ajusta los patrones `applyTo:` de cada archivo.
-
----
-
-## Lineamientos de referencia
-
-Cargados automáticamente por los agentes:
-
-| Documento | Contenido |
-|---|---|
-| `.github/docs/lineamientos/dev-guidelines.md` | Clean Code, SOLID, API REST, Seguridad, Observabilidad |
-| `.github/docs/lineamientos/qa-guidelines.md` | Estrategia QA, Gherkin, Riesgos, Automatización, Performance |
-| `.github/docs/lineamientos/guidelines.md` | Referencia rápida de estándares: código, tests, API, Git |
-
----
-
-## Estructura de carpetas
+## Estructura del proyecto
 
 ```
-Project Root/
-│
-├── docs/output/                     ← artefactos generados por los agentes
-│   ├── qa/                          ← Gherkin, riesgos, performance
-│   ├── api/                         ← documentación de API
-│   └── adr/                         ← Architecture Decision Records
-│
-└── .github/                         ← framework Copilot (auto-contenido para compartir)
-    ├── README.md                    ← este archivo
-    ├── AGENTS.md                    ← reglas críticas para todos los agentes
-    ├── copilot-instructions.md      ← siempre activo en Copilot Chat
-    │
-    ├── agents/                      ← 9 agentes (@nombre en Copilot Chat)
-    │   ├── orchestrator.agent.md
-    │   ├── spec-generator.agent.md
-    │   ├── backend-developer.agent.md
-    │   ├── frontend-developer.agent.md
-    │   ├── database.agent.md
-    │   ├── test-engineer-backend.agent.md
-    │   ├── test-engineer-frontend.agent.md
-    │   ├── qa.agent.md
-    │   └── documentation.agent.md
-    │
-    ├── skills/                      ← 9 skills (/comando en Copilot Chat)
-    │   ├── asdd-orchestrate/
-    │   ├── generate-spec/
-    │   ├── implement-backend/
-    │   ├── implement-frontend/
-    │   ├── unit-testing/
-    │   ├── gherkin-case-generator/
-    │   ├── risk-identifier/
-    │   ├── automation-flow-proposer/
-    │   └── performance-analyzer/
-    │
-    ├── docs/lineamientos/           ← guidelines del framework (incluidos al compartir)
-    │   ├── dev-guidelines.md
-    │   └── qa-guidelines.md
-    │
-    ├── prompts/                     ← 8 prompts (/nombre en Copilot Chat)
-    │
-    ├── instructions/                ← aplicadas automáticamente por contexto de archivo
-    │   ├── backend.instructions.md  ← applyTo: backend/**
-    │   ├── frontend.instructions.md ← applyTo: frontend/src/**
-    │   └── tests.instructions.md   ← applyTo: tests/**
-    │
-    ├── requirements/                ← requerimientos de negocio (input del pipeline)
-    │   └── <feature>.md
-    │
-    └── specs/                       ← specs técnicas (fuente de verdad)
-        └── <feature>.spec.md        ← DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED
+src/
+├── main/                  # proceso main (Electron + Prisma)
+│   ├── index.ts           # bootstrap + permission handler + audio HTTP server
+│   ├── db.ts              # cliente Prisma
+│   ├── ipc/               # handlers IPC por dominio
+│   ├── services/          # playout, scheduler, streaming
+│   └── utils/audio.ts     # ffprobe, normalización
+├── preload/
+│   └── index.ts           # bridge tipado: window.electronAPI
+└── renderer/src/
+    ├── App.tsx            # router + layout
+    ├── components/        # Layout, Sidebar, NowPlayingBar, PanelWorkspace, ...
+    ├── hooks/             # usePlayout, useSoundboard, useProfiles, usePrograms
+    ├── pages/             # una carpeta por página
+    ├── services/          # clientes IPC delgados
+    ├── styles/
+    └── types/
+prisma/
+└── schema.prisma          # modelo SQLite
+e2e-tests/
+└── ...                    # Serenity + Cucumber
 ```
 
 ---
 
-## Reglas de Oro
+## Testing
 
-1. **No código sin spec aprobada** — siempre debe existir `specs/<feature>.spec.md` con estado `APPROVED`.
-2. **No código no autorizado** — los agentes no generan ni modifican código sin instrucción explícita.
-3. **No suposiciones** — si el requerimiento es ambiguo, el agente pregunta antes de actuar.
-4. **Transparencia** — el agente explica qué va a hacer antes de hacerlo.
+- **Unitarios + integración** (Vitest, jsdom): `src/renderer/src/__tests__/**` y `src/main/__tests__/**`.
+- **E2E** (Serenity BDD + Cucumber): `e2e-tests/src/test/**`.
+- **Cobertura**: `npm run test:coverage` (reporte HTML en `coverage/`).
+
+Alias de paths configurado en [vitest.config.ts](vitest.config.ts):
+
+- `@renderer/*` → `src/renderer/src/*`
+
+---
+
+## Build de distribución
+
+```bash
+npm run build       # bundles electron-vite
+npm run dist:win    # instalador NSIS para Windows
+```
+
+Salida en `dist/`. La configuración del empaquetador vive en [electron-builder.yml](electron-builder.yml).
+
+---
+
+## Licencia
+
+Privada / interna del proyecto.
