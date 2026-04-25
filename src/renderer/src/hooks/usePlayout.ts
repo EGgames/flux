@@ -458,6 +458,14 @@ export function usePlayout() {
       const e = lastErr as Error
       appendLog('error', `Salida principal: setSinkId fallo (${e?.name ?? 'Error'}: ${e?.message ?? String(lastErr)})`)
     }
+    // Recovery: si setSinkId dejo el <audio> pausado (Chromium puede pausarlo al cambiar
+    // de sink), lo reanudamos. Sin esto la barra de tiempo se congela y no sale audio.
+    for (const sound of sounds) {
+      const node = sound._node as HTMLAudioElement | undefined
+      if (node && node.paused && !node.ended) {
+        try { await node.play() } catch { /* autoplay/policy: ignorar */ }
+      }
+    }
   }, [appendLog])
 
   const applyMonitorSinkToHowl = useCallback(async (howl: Howl) => {
@@ -1032,6 +1040,12 @@ export function usePlayout() {
             // Audio finished but onend may not have fired yet — keep the bar at the end.
             setCurrentSec((prev) => Math.max(prev, Math.floor(audioEl.duration || prev)))
           } else {
+            // Self-healing: si el backend dice 'playing' pero el <audio> quedo pausado
+            // (suele pasar tras un setSinkId fallido o un cambio rapido de salida),
+            // lo reanudamos. Asi la barra de tiempo no se congela y el audio vuelve.
+            if (audioEl.paused) {
+              try { void audioEl.play() } catch { /* no-op */ }
+            }
             setCurrentSec(Math.floor(audioEl.currentTime))
           }
 
@@ -1257,8 +1271,13 @@ export function usePlayout() {
         const aL = vuAnalyserLRef.current
         const aR = vuAnalyserRRef.current
         if (aL && aR) {
-          const l = computeDbfsPeak(aL)
-          const r = computeDbfsPeak(aR)
+          const lRaw = computeDbfsPeak(aL)
+          const rRaw = computeDbfsPeak(aR)
+          // Cuantizamos a 1 dB para que setVuLevels no dispare un re-render por frame.
+          // Sin esto, usePlayout y PlayoutPage rerenderizarian a 30fps creando un nuevo array
+          // de panels en cada tick (causa de glitches y de degradacion de side-effects vecinos).
+          const l = Number.isFinite(lRaw) ? Math.round(lRaw) : -Infinity
+          const r = Number.isFinite(rRaw) ? Math.round(rRaw) : -Infinity
           setVuLevels((prev) => (prev.l === l && prev.r === r ? prev : { l, r }))
         }
       }
@@ -1317,6 +1336,7 @@ export function usePlayout() {
     clearLogs,
     audioEffects,
     updateAudioEffects,
-    vuLevels
+    vuLevels,
+    reapplyOutputs
   }
 }

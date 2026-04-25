@@ -220,17 +220,21 @@ export default function PanelWorkspace({
 
     const width = containerRef.current.clientWidth
     const columns = width > 1280 ? 3 : width > 980 ? 2 : 1
-    const gap = 12
-    const panelWidth = Math.floor((width - gap * (columns - 1)) / columns)
+    const gap = 24
+    const padding = 16
+    const rowHeight = 280
+    const panelHeight = 260
+    const usableWidth = width - padding * 2
+    const panelWidth = Math.floor((usableWidth - gap * (columns - 1)) / columns)
 
     const next = sortedPanels.reduce<Record<string, PanelRect>>((acc, panel, index) => {
       const col = index % columns
       const row = Math.floor(index / columns)
       acc[panel.id] = {
-        x: col * (panelWidth + gap),
-        y: row * 250,
+        x: padding + col * (panelWidth + gap),
+        y: padding + row * rowHeight,
         w: panelWidth,
-        h: 240
+        h: panelHeight
       }
       return acc
     }, {})

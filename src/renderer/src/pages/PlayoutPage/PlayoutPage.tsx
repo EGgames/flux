@@ -67,6 +67,7 @@ interface Props {
     audioEffects?: AudioEffectsConfig | null
     updateAudioEffects?: (payload: { crossfadeEnabled?: boolean; crossfadeMs?: number; crossfadeCurve?: 'equal-power' | 'linear' }) => Promise<AudioEffectsConfig | null>
     vuLevels?: { l: number; r: number }
+    reapplyOutputs?: () => Promise<void>
   }
 }
 
@@ -581,7 +582,31 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
       minW: 160,
       minH: 220,
       defaultRect: { x: 1392, y: 12, w: 220, h: 360 },
-      content: <VUMeter left={playout.vuLevels?.l ?? -Infinity} right={playout.vuLevels?.r ?? -Infinity} />
+      content: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <VUMeter left={playout.vuLevels?.l ?? -Infinity} right={playout.vuLevels?.r ?? -Infinity} />
+          </div>
+          {playout.reapplyOutputs && (
+            <button
+              type="button"
+              onClick={() => { void playout.reapplyOutputs?.() }}
+              title="Reenrutar el audio a la salida configurada (recupera setSinkId fallido)."
+              style={{
+                padding: '6px 10px',
+                fontSize: 12,
+                background: '#2a3038',
+                color: '#e6e9ef',
+                border: '1px solid #3a414b',
+                borderRadius: 4,
+                cursor: 'pointer'
+              }}
+            >
+              Reaplicar salidas
+            </button>
+          )}
+        </div>
+      )
     }
   ], [
     activeProfile,
@@ -634,7 +659,8 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     playout.logs,
     playout.clearLogs,
     playout.audioEffects,
-    playout.vuLevels
+    playout.vuLevels,
+    playout.reapplyOutputs
   ])
 
   return (
