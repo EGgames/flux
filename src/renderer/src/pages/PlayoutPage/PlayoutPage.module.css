@@ -434,6 +434,10 @@
   font-family: 'Consolas', 'Menlo', monospace;
   font-size: 12px;
   line-height: 1.45;
+  /* Permitir copiar el contenido del log linea por linea (override del body { user-select: none }). */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 .logsEmpty {
   color: var(--color-text-muted);

@@ -235,9 +235,15 @@ export function usePlayout() {
   const [volume, setVolumeState] = useState<number>(1)
   const statusRef = useRef(status)
   useEffect(() => { statusRef.current = status }, [status])
+  useEffect(() => { currentSecRef.current = currentSec }, [currentSec])
   const audioServerPortRef = useRef<number | null>(null)
   const howlRef = useRef<Howl | null>(null)
   const monitorHowlRef = useRef<Howl | null>(null)
+  // Posicion (en segundos) desde la cual debe arrancar el proximo playTrack. Lo usamos
+  // para reanudar la playlist en el mismo punto despues de una tanda publicitaria.
+  const resumeFromSecRef = useRef<number | null>(null)
+  // Mirror de currentSec en un ref para leer su valor sincrono al iniciar la tanda.
+  const currentSecRef = useRef(0)
   const transitionRef = useRef<{ fadeInMs: number; fadeOutMs: number }>({ fadeInMs: 0, fadeOutMs: 0 })
   const sinkDeviceIdRef = useRef<string | null>(null)
   const monitorSinkDeviceIdRef = useRef<string | null>(null)
@@ -425,15 +431,33 @@ export function usePlayout() {
     // si el usuario cambio desde un device fisico hacia 'default'. Antes filtrabamos null y
     // quedaba pegado al ultimo dispositivo aplicado.
     const targetDeviceId = sinkDeviceIdRef.current ?? 'default'
-    const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
+    const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void>; sinkId?: string } }> })._sounds ?? [])
+
+    // Si el <audio> esta capturado por el EQ (createMediaElementSource), Chromium ya
+    // no rutea audio por el elemento sino por AudioContext.destination. Igual delegamos
+    // a AudioContext.setSinkId() para asegurar que la salida del EQ vaya al device pedido.
+    const capturedByEq = eqCapturedNodeRef.current
+    const routedThroughEq = sounds.some((s) => s._node && s._node === capturedByEq)
+    if (routedThroughEq) {
+      await updateEqSink()
+    }
+
     let applied = 0
     let lastErr: unknown = null
+    let alreadyApplied = false
     for (const sound of sounds) {
       const node = sound._node
       if (!node) continue
       if (typeof node.setSinkId !== 'function') {
         appendLog('warn', 'Salida: setSinkId no soportado por el navegador')
         return
+      }
+      // Si el elemento html5 reciclado por el pool de Howler ya esta en el device pedido,
+      // saltamos para evitar el AbortError espurio que tira Chromium en cambios encadenados.
+      if (node.sinkId === targetDeviceId) {
+        alreadyApplied = true
+        applied++
+        continue
       }
       // Algunos drivers / Chromium devuelven AbortError en el primer intento si el
       // <audio> aun no termino de adjuntar el src. Reintentamos hasta 3 veces.
@@ -449,11 +473,14 @@ export function usePlayout() {
         }
       }
     }
-    if (applied > 0) {
+    if (applied > 0 && !alreadyApplied) {
       // Al menos un nodo de audio quedo enrutado al device pedido => exito real.
-      // Si hubo un error en otro sound del pool html5 de Howler lo ignoramos:
-      // el audio ya esta saliendo por el device correcto.
       appendLog('info', `Salida principal -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
+    } else if (lastErr && routedThroughEq) {
+      // El elemento esta capturado por el EQ y por eso Chromium rechaza setSinkId con
+      // AbortError. La salida real ya quedo enrutada via AudioContext.setSinkId() arriba,
+      // asi que esto NO es un error real. Loggeamos como info.
+      appendLog('info', `Salida principal (via EQ) -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
     } else if (lastErr) {
       const e = lastErr as Error
       appendLog('error', `Salida principal: setSinkId fallo (${e?.name ?? 'Error'}: ${e?.message ?? String(lastErr)})`)
@@ -466,16 +493,24 @@ export function usePlayout() {
         try { await node.play() } catch { /* autoplay/policy: ignorar */ }
       }
     }
-  }, [appendLog])
+  }, [appendLog, updateEqSink])
 
   const applyMonitorSinkToHowl = useCallback(async (howl: Howl) => {
     const targetDeviceId = monitorSinkDeviceIdRef.current ?? 'default'
-    const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> } }> })._sounds ?? [])
+    const sounds = ((howl as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void>; sinkId?: string } }> })._sounds ?? [])
     let applied = 0
     let lastErr: unknown = null
+    let alreadyApplied = false
     for (const sound of sounds) {
       const node = sound._node
       if (!node || typeof node.setSinkId !== 'function') continue
+      // Si el elemento html5 reciclado por el pool de Howler ya esta en el device pedido,
+      // saltamos para evitar el AbortError espurio que tira Chromium en cambios encadenados.
+      if (node.sinkId === targetDeviceId) {
+        alreadyApplied = true
+        applied++
+        continue
+      }
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           await node.setSinkId(targetDeviceId)
@@ -488,9 +523,7 @@ export function usePlayout() {
         }
       }
     }
-    if (applied > 0) {
-      appendLog('info', `Monitor -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
-    } else if (lastErr) {
+    if (applied > 0 && !alreadyApplied) {
       const e = lastErr as Error
       appendLog('error', `Monitor: setSinkId fallo (${e?.name ?? 'Error'}: ${e?.message ?? String(lastErr)})`)
     }
@@ -653,10 +686,24 @@ export function usePlayout() {
         }
       },
       onplay: () => {
-        void applySinkToHowl(howl)
-        // Always pre-route through the EQ chain at track start (audio is silent
-        // at this moment, no glitch). The 'enabled' state just controls gain values.
+        // IMPORTANTE: conectar al EQ PRIMERO. El EQ usa createMediaElementSource
+        // que mueve el ruteo desde el <audio> hacia AudioContext.destination. Si
+        // intentamos element.setSinkId() despues de eso, Chromium rechaza con
+        // AbortError porque el elemento ya no rutea audio. applySinkToHowl detecta
+        // este caso y delega a AudioContext.setSinkId() via updateEqSink.
         connectHowlToEq(howl)
+        void applySinkToHowl(howl)
+        // Reanudar desde la posicion guardada (caso: regreso de tanda publicitaria).
+        // Lo hacemos en onplay para asegurar que el <audio> ya esta listo para hacer seek.
+        const resumeSec = resumeFromSecRef.current
+        if (resumeSec !== null && resumeSec > 0) {
+          resumeFromSecRef.current = null
+          try {
+            howl.seek(resumeSec)
+            setCurrentSec(resumeSec)
+            appendLog('info', `Reanudando ${track.name} desde ${Math.floor(resumeSec)}s`)
+          } catch { /* no-op */ }
+        }
         // Re-read duration on play in case onload fired before metadata was ready
         const dur = howl.duration()
         if (typeof dur === 'number' && dur > 0 && isFinite(dur)) {
@@ -802,6 +849,14 @@ export function usePlayout() {
       // Fade out and stop current music — do NOT rely on howl.playing()
       // because in html5+EQ mode Howler reports playing()=false even while audio is running
       const currentHowl = howlRef.current
+      // Guardar la posicion actual para reanudar la playlist exactamente donde quedo cuando
+      // termina/se aborta la tanda publicitaria.
+      const currentTrackId = statusRef.current.track?.id
+      if (currentTrackId && currentHowl) {
+        resumeFromSecRef.current = currentSecRef.current
+      } else {
+        resumeFromSecRef.current = null
+      }
       howlRef.current = null  // claim ref early to prevent races
       monitorHowlRef.current?.stop()
       monitorHowlRef.current?.unload()
@@ -840,8 +895,8 @@ export function usePlayout() {
             src: [src],
             html5: true,
             onplay: () => {
-              void applySinkToHowl(adHowl)
               connectHowlToEq(adHowl)
+              void applySinkToHowl(adHowl)
             },
             onend: () => resolve(),
             onstop: () => resolve(),
@@ -853,8 +908,27 @@ export function usePlayout() {
           adHowl.play()
           howlRef.current = adHowl
           adCurrentHowlRef.current = adHowl
+
+          // Monitor: si hay device asignado, reproducir la tanda en paralelo en el monitor
+          // (los anuncios deben sonar tanto en la salida principal como en el monitor).
+          if (monitorSinkDeviceIdRef.current && monitorSinkDeviceIdRef.current !== null) {
+            const monitorAdHowl = new Howl({
+              src: [src],
+              html5: true,
+              volume: 1,
+              onplay: () => { void applyMonitorSinkToHowl(monitorAdHowl) }
+            })
+            monitorAdHowl.play()
+            monitorHowlRef.current = monitorAdHowl
+          }
         })
         adCurrentHowlRef.current = null
+        // Limpiar el monitor de la tanda antes de pasar al proximo asset.
+        if (monitorHowlRef.current) {
+          try { monitorHowlRef.current.stop() } catch { /* no-op */ }
+          try { monitorHowlRef.current.unload() } catch { /* no-op */ }
+          monitorHowlRef.current = null
+        }
       }
 
       const wasAborted = adAbortedRef.current
@@ -953,7 +1027,7 @@ export function usePlayout() {
       window.electronAPI.off('scheduler:program-changed', onProgramChanged as (...args: unknown[]) => void)
       window.electronAPI.off('playout:queue-update', onQueueUpdate as (...args: unknown[]) => void)
     }
-  }, [playTrack, applySinkToHowl, connectHowlToEq])
+  }, [playTrack, applySinkToHowl, applyMonitorSinkToHowl, connectHowlToEq, appendLog])
 
   useEffect(() => {
     if (!status.profileId) return
