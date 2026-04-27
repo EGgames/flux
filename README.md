@@ -16,6 +16,7 @@ Software de automatización de radio para escritorio. Playout local, programaci�
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Testing](#testing)
 - [Build de distribución](#build-de-distribución)
+- [Instalación desde Releases](#instalación-desde-releases)
 
 ---
 
@@ -188,6 +189,33 @@ npm run dist:win    # instalador NSIS para Windows
 ```
 
 Salida en `dist/`. La configuración del empaquetador vive en [electron-builder.yml](electron-builder.yml).
+
+---
+
+## Instalación desde Releases
+
+### Windows
+Descargá `FLUX.Setup.<version>.exe` desde [Releases](https://github.com/EGgames/flux/releases) y ejecutalo. SmartScreen puede pedirte "Más información → Ejecutar de todos modos" porque el binario aún no está firmado.
+
+### Linux
+Descargá `FLUX-<version>.AppImage`, dale permisos y ejecutalo:
+
+```bash
+chmod +x FLUX-*.AppImage
+./FLUX-*.AppImage
+```
+
+### macOS — "La app está dañada y no se puede abrir"
+
+Los `.dmg` actuales **no están firmados ni notarizados por Apple** (notarización requiere cuenta Apple Developer paga). macOS Gatekeeper marca el `.app` con `com.apple.quarantine` al descargarlo y muestra el mensaje "está dañado". La app **no** está dañada.
+
+Después de arrastrar `FLUX.app` a `/Applications`, abrí Terminal y ejecutá una sola vez:
+
+```bash
+xattr -cr /Applications/FLUX.app
+```
+
+Después abrila normalmente desde Launchpad. Para Apple Silicon usá `FLUX-<version>-arm64.dmg`; para Intel usá `FLUX-<version>.dmg`.
 
 ---
 
