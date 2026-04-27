@@ -38,20 +38,72 @@ const MIGRATION_SQLS: Record<string, string> = (() => {
  * Apuntamos a Prisma al .node nativo y al schema antes de instanciar el cliente.
  * En dev (app.isPackaged === false) los paths default funcionan.
  */
+/**
+ * Detecta el binario del query engine apropiado para la plataforma actual.
+ * Los archivos generados por `prisma generate` siguen estos patrones:
+ *  - Windows: `query_engine-windows.dll.node`
+ *  - macOS:   `libquery_engine-darwin.dylib.node` / `libquery_engine-darwin-arm64.dylib.node`
+ *  - Linux:   `libquery_engine-debian-openssl-3.0.x.so.node` / `libquery_engine-linux-musl-openssl-3.0.x.so.node`
+ *
+ * En vez de hardcodear el nombre (que solo funcionaria en una plataforma),
+ * listamos el directorio y elegimos el primero que matchee.
+ */
+function findQueryEngine(baseDir: string): string | null {
+  if (!fs.existsSync(baseDir)) return null
+  let entries: string[] = []
+  try {
+    entries = fs.readdirSync(baseDir)
+  } catch (err) {
+    log.warn(`[db] readdir failed for ${baseDir}`, err)
+    return null
+  }
+
+  const candidates = entries.filter(
+    (f) => /^(lib)?query_engine-.*\.node$/.test(f) || /^query-engine-.*\.node$/.test(f)
+  )
+
+  if (candidates.length === 0) return null
+
+  // Filtrado por plataforma: priorizamos el binario que corresponde al SO/arch actual.
+  const isWin = process.platform === 'win32'
+  const isMac = process.platform === 'darwin'
+  const isArm = process.arch === 'arm64'
+
+  const platformMatch = candidates.find((f) => {
+    if (isWin) return /windows/i.test(f)
+    if (isMac) return isArm ? /darwin-arm64/.test(f) : /darwin(?!-arm64)/.test(f)
+    // Linux: debian / rhel / linux-musl, etc.
+    return /(debian|rhel|linux|musl)/i.test(f)
+  })
+
+  return path.join(baseDir, platformMatch || candidates[0])
+}
+
 function configurePrismaForProduction(): void {
   if (!app.isPackaged) return
   // El cliente Prisma generado vive en app.asar.unpacked/node_modules/.prisma/client/
   // (copiado via extraResources). El launcher de produccion (out/main/launcher.js)
   // ajusta NODE_PATH para que `require('.prisma/client/default')` resuelva ahi.
-  // Aqui solo apuntamos las rutas explicitas como fallback / para Prisma 5.x.
-  const baseDir = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.prisma', 'client')
-  const enginePath = path.join(baseDir, 'query_engine-windows.dll.node')
-  const schemaPath = path.join(baseDir, 'schema.prisma')
-  if (fs.existsSync(enginePath)) {
+  const baseDir = path.join(
+    process.resourcesPath,
+    'app.asar.unpacked',
+    'node_modules',
+    '.prisma',
+    'client'
+  )
+
+  const enginePath = findQueryEngine(baseDir)
+  if (enginePath) {
     process.env.PRISMA_QUERY_ENGINE_LIBRARY = enginePath
+    log.info(`[db] using prisma query engine: ${enginePath}`)
   } else {
-    log.warn(`[db] prisma engine not found at ${enginePath}`)
+    log.error(
+      `[db] CRITICAL: no prisma query engine found in ${baseDir} for ${process.platform}-${process.arch}. ` +
+        `Files present: ${fs.existsSync(baseDir) ? fs.readdirSync(baseDir).join(', ') : '<dir missing>'}`
+    )
   }
+
+  const schemaPath = path.join(baseDir, 'schema.prisma')
   if (fs.existsSync(schemaPath)) {
     process.env.PRISMA_SCHEMA_PATH = schemaPath
   }

@@ -2,7 +2,11 @@
 // SQLite local-first database
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Generamos engines para TODAS las plataformas que empaquetamos.
+  // Sin esto, `prisma generate` solo emite el binario de la maquina host
+  // y la app no arranca en otras plataformas (no carga el query engine).
+  binaryTargets = ["native", "windows", "darwin", "darwin-arm64", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
