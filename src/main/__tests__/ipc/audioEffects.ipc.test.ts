@@ -6,7 +6,7 @@ vi.mock('electron', () => {
 })
 
 import { registerAudioEffectsIpc } from '../../ipc/audioEffects.ipc'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import { ipcMain } from 'electron'
 import { getRegisteredHandlers, invokeHandler } from '../helpers/ipcHarness'
 
@@ -28,7 +28,7 @@ describe('audioEffects.ipc', () => {
     vi.clearAllMocks()
     ;(ipcMain.handle as ReturnType<typeof vi.fn>).mockClear()
     db = makeDb()
-    registerAudioEffectsIpc(db as unknown as PrismaClient)
+    registerAudioEffectsIpc(db as unknown as DbClient)
     handlers = getRegisteredHandlers()
   })
 

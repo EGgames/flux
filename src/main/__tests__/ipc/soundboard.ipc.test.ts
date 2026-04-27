@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }))
 
 import { registerSoundboardIpc } from '../../ipc/soundboard.ipc'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import { ipcMain } from 'electron'
 import { getRegisteredHandlers, invokeHandler, createDbMock } from '../helpers/ipcHarness'
 
@@ -15,7 +15,7 @@ describe('soundboard.ipc', () => {
     vi.clearAllMocks()
     ;(ipcMain.handle as ReturnType<typeof vi.fn>).mockClear()
     db = createDbMock()
-    registerSoundboardIpc(db as unknown as PrismaClient)
+    registerSoundboardIpc(db as unknown as DbClient)
     handlers = getRegisteredHandlers()
   })
 

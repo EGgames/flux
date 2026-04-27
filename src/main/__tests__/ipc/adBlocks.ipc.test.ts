@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }))
 
 import { registerAdBlockIpc } from '../../ipc/adBlocks.ipc'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import { ipcMain } from 'electron'
 import { getRegisteredHandlers, invokeHandler, createDbMock } from '../helpers/ipcHarness'
 
@@ -15,7 +15,7 @@ describe('adBlocks.ipc', () => {
     vi.clearAllMocks()
     ;(ipcMain.handle as ReturnType<typeof vi.fn>).mockClear()
     db = createDbMock()
-    registerAdBlockIpc(db as unknown as PrismaClient)
+    registerAdBlockIpc(db as unknown as DbClient)
     handlers = getRegisteredHandlers()
   })
 

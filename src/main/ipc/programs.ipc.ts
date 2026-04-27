@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 
-export function registerProgramIpc(db: PrismaClient): void {
+export function registerProgramIpc(db: DbClient): void {
   ipcMain.handle('program:list', async (_event, profileId: string) => {
     return db.radioProgram.findMany({
       where: { profileId },

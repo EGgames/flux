@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 import type { StreamingService } from '../services/streamingService'
 
-export function registerOutputIpc(db: PrismaClient, streamingService: StreamingService): void {
+export function registerOutputIpc(db: DbClient, streamingService: StreamingService): void {
   ipcMain.handle('output:list', async (_event, profileId: string) => {
     return db.outputIntegration.findMany({
       where: { profileId },

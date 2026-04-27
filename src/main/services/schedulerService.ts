@@ -1,6 +1,6 @@
 import cron from 'node-cron'
 import type { BrowserWindow } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 import log from 'electron-log'
 
 export class SchedulerService {
@@ -8,7 +8,7 @@ export class SchedulerService {
   private lastProgramByProfile = new Map<string, string>()
 
   constructor(
-    private db: PrismaClient,
+    private db: DbClient,
     private win: BrowserWindow
   ) {}
 

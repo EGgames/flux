@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 
-export function registerAdBlockIpc(db: PrismaClient): void {
+export function registerAdBlockIpc(db: DbClient): void {
   ipcMain.handle('ad-block:list', async (_event, profileId: string) => {
     return db.adBlock.findMany({
       where: { profileId },

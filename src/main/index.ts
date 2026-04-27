@@ -16,7 +16,7 @@ protocol.registerSchemesAsPrivileged([
     }
   }
 ])
-import { closeDb, getDb, initDb } from './db'
+import { closeDb, initDb } from './db'
 import { registerProfileIpc } from './ipc/profiles.ipc'
 import { registerAudioAssetIpc } from './ipc/audioAssets.ipc'
 import { registerPlaylistIpc } from './ipc/playlists.ipc'

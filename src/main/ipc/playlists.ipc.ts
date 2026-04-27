@@ -1,12 +1,12 @@
 import { ipcMain } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 import { z } from 'zod'
 import { validatedHandle } from '../utils/ipcValidation'
 
 const profileIdSchema = z.string().min(1)
 const idSchema = z.string().min(1)
 
-export function registerPlaylistIpc(db: PrismaClient): void {
+export function registerPlaylistIpc(db: DbClient): void {
   ipcMain.handle('playlist:list', async (_event, profileId: string) => {
     return db.playlist.findMany({
       where: { profileId },

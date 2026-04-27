@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 
-export function registerProfileIpc(db: PrismaClient): void {
+export function registerProfileIpc(db: DbClient): void {
   ipcMain.handle('profile:list', async () => {
     return db.profile.findMany({ orderBy: { createdAt: 'asc' } })
   })

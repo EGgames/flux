@@ -31,7 +31,7 @@ vi.mock('../../services/playoutService', () => ({
 }))
 
 import { registerPlayoutIpc } from '../../ipc/playout.ipc'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import type { SchedulerService } from '../../services/schedulerService'
 import type { StreamingService } from '../../services/streamingService'
 import type { BrowserWindow } from 'electron'
@@ -53,7 +53,7 @@ describe('playout.ipc', () => {
     streaming = { pushChunk: vi.fn() }
     win = {} as BrowserWindow
     registerPlayoutIpc(
-      db as unknown as PrismaClient,
+      db as unknown as DbClient,
       scheduler,
       streaming as unknown as StreamingService,
       win

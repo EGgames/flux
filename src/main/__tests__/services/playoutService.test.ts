@@ -5,7 +5,7 @@ vi.mock('electron-log', () => ({
 }))
 
 import { PlayoutService } from '../../services/playoutService'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import type { SchedulerService } from '../../services/schedulerService'
 import type { StreamingService } from '../../services/streamingService'
 import { createDbMock, createWindowMock } from '../helpers/ipcHarness'
@@ -28,7 +28,7 @@ describe('PlayoutService', () => {
     win = createWindowMock()
     scheduler = {} as SchedulerService
     streaming = {} as StreamingService
-    service = new PlayoutService(db as unknown as PrismaClient, scheduler, streaming, win.win)
+    service = new PlayoutService(db as unknown as DbClient, scheduler, streaming, win.win)
   })
 
   afterEach(() => {

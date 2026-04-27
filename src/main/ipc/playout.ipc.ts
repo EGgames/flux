@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 import type { SchedulerService } from '../services/schedulerService'
 import type { StreamingService } from '../services/streamingService'
 import { PlayoutService } from '../services/playoutService'
@@ -7,7 +7,7 @@ import { PlayoutService } from '../services/playoutService'
 let playoutService: PlayoutService | null = null
 
 export function registerPlayoutIpc(
-  db: PrismaClient,
+  db: DbClient,
   schedulerService: SchedulerService,
   streamingService: StreamingService,
   win: BrowserWindow

@@ -2,40 +2,27 @@ appId: com.flux.app
 productName: FLUX
 copyright: Copyright © 2026 FLUX
 
-# En produccion el entry point es out/main/launcher.js (configura NODE_PATH
-# para que Node encuentre node_modules/.prisma/client en app.asar.unpacked
-# antes de que el bundle main importe @prisma/client).
-extraMetadata:
-  main: out/main/launcher.js
-
 directories:
   buildResources: build
   output: bin
 
+# Lo que se incluye en el .asar. Sin truchadas con extraResources: el bundle
+# main.js (out/main/index.js) ya tiene el SQL del schema embebido y solo
+# necesita better-sqlite3 (modulo nativo) accesible.
 files:
   - out/**/*
-  - node_modules/@prisma/client/**/*
-  - "node_modules/.prisma/**/*"
-  - "**/node_modules/.prisma/**/*"
-  - prisma/schema.prisma
-  - prisma/migrations/**/*
   - "!node_modules/**/{CHANGELOG.md,README.md,*.d.ts}"
 
-# .prisma/client (cliente generado + binario nativo del query engine) NO se
-# incluye via `files` porque el globber de electron-builder ignora prefijos
-# con punto. Lo copiamos como extraResources DENTRO de app.asar.unpacked para
-# que Node lo resuelva como `node_modules/.prisma/client` cuando
-# `@prisma/client/default.js` haga `require('.prisma/client')`.
-extraResources:
-  - from: node_modules/.prisma/client
-    to: app.asar.unpacked/node_modules/.prisma/client
-    filter:
-      - "**/*"
-      - "!*.tmp*"
-
+# better-sqlite3 es modulo NATIVO (.node bindings). DEBE ir desempaquetado:
+# Node no puede cargar .node files desde adentro de app.asar.
 asarUnpack:
-  - node_modules/@prisma/client
-  - "node_modules/.prisma/**/*"
+  - node_modules/better-sqlite3/**/*
+  - node_modules/bindings/**/*
+  - node_modules/file-uri-to-path/**/*
+
+# electron-builder corre `npm rebuild` por default (npmRebuild: true) y
+# recompila better-sqlite3 con los headers de Electron en cada plataforma
+# del matrix de CI. No necesitamos engine binaries pre-build de terceros.
 
 win:
   target:

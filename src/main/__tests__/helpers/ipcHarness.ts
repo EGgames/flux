@@ -51,7 +51,8 @@ export function createDbMock() {
     radioProgram: delegate(),
     soundboardButton: delegate(),
     outputIntegration: delegate(),
-    playoutEvent: delegate()
+    playoutEvent: delegate(),
+    audioEffectsConfig: delegate()
   }
 }
 

@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 
 const TOTAL_SLOTS = 16
 
-export function registerSoundboardIpc(db: PrismaClient): void {
+export function registerSoundboardIpc(db: DbClient): void {
   ipcMain.handle('soundboard:get', async (_event, profileId: string) => {
     const existing = await db.soundboardButton.findMany({
       where: { profileId },

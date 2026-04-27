@@ -5,7 +5,7 @@ vi.mock('electron', () => ({
 }))
 
 import { registerProfileIpc } from '../../ipc/profiles.ipc'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import { ipcMain } from 'electron'
 import { getRegisteredHandlers, invokeHandler, createDbMock } from '../helpers/ipcHarness'
 
@@ -17,7 +17,7 @@ describe('profiles.ipc', () => {
     vi.clearAllMocks()
     ;(ipcMain.handle as ReturnType<typeof vi.fn>).mockClear()
     db = createDbMock()
-    registerProfileIpc(db as unknown as PrismaClient)
+    registerProfileIpc(db as unknown as DbClient)
     handlers = getRegisteredHandlers()
   })
 

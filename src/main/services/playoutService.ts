@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 import type { SchedulerService } from './schedulerService'
 import type { StreamingService } from './streamingService'
 import log from 'electron-log'
@@ -77,7 +77,7 @@ export class PlayoutService {
   }
 
   constructor(
-    private db: PrismaClient,
+    private db: DbClient,
     schedulerService: SchedulerService,
     streamingService: StreamingService,
     private win: BrowserWindow

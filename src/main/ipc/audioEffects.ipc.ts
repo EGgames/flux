@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../db/types'
 
-export function registerAudioEffectsIpc(db: PrismaClient): void {
+export function registerAudioEffectsIpc(db: DbClient): void {
   ipcMain.handle('audio-effects:get', async (_event, profileId: string) => {
     if (!profileId) return null
     const cfg = await db.audioEffectsConfig.findUnique({ where: { profileId } })

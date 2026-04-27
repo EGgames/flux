@@ -7,8 +7,12 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['@prisma/client', 'node-cron', 'electron-log']
-      }
+        // better-sqlite3 es modulo nativo: NO bundlear, dejar require dinamico.
+        // electron-log y node-cron tambien quedan externos.
+        external: ['better-sqlite3', 'node-cron', 'electron-log']
+      },
+      // Soporte para `import SQL from './schema.sql?raw'` en el bundle main.
+      assetsInclude: ['**/*.sql']
     }
   },
   preload: {

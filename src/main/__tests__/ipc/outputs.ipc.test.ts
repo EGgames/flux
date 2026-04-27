@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }))
 
 import { registerOutputIpc } from '../../ipc/outputs.ipc'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import type { StreamingService } from '../../services/streamingService'
 import { ipcMain } from 'electron'
 import { getRegisteredHandlers, invokeHandler, createDbMock } from '../helpers/ipcHarness'
@@ -18,7 +18,7 @@ describe('outputs.ipc', () => {
     ;(ipcMain.handle as ReturnType<typeof vi.fn>).mockClear()
     db = createDbMock()
     streamingService = { disconnect: vi.fn(), testConnection: vi.fn() }
-    registerOutputIpc(db as unknown as PrismaClient, streamingService as unknown as StreamingService)
+    registerOutputIpc(db as unknown as DbClient, streamingService as unknown as StreamingService)
     handlers = getRegisteredHandlers()
   })
 

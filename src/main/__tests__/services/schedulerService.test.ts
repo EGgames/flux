@@ -10,7 +10,7 @@ vi.mock('electron-log', () => ({
 
 import cron from 'node-cron'
 import { SchedulerService } from '../../services/schedulerService'
-import type { PrismaClient } from '@prisma/client'
+import type { DbClient } from '../../db/types'
 import { createDbMock, createWindowMock } from '../helpers/ipcHarness'
 
 describe('SchedulerService', () => {
@@ -22,7 +22,7 @@ describe('SchedulerService', () => {
     vi.clearAllMocks()
     db = createDbMock()
     win = createWindowMock()
-    service = new SchedulerService(db as unknown as PrismaClient, win.win)
+    service = new SchedulerService(db as unknown as DbClient, win.win)
   })
 
   describe('start/stop', () => {
