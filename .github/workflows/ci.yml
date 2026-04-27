@@ -65,13 +65,16 @@ jobs:
 
       - name: Serve renderer for E2E
         run: |
-          python3 -m http.server 5173 --directory out/renderer &
-          echo $! > /tmp/e2e_server.pid
-          # Wait until the server is accepting connections (max 15s)
-          for i in $(seq 1 15); do
+          npx --yes serve out/renderer -l 5173 --no-clipboard &
+          # Wait until the server is accepting connections (max 20s)
+          for i in $(seq 1 20); do
             curl -sf http://localhost:5173/ > /dev/null 2>&1 && echo "Server ready" && break
             sleep 1
           done
+          echo "=== index.html snippet ==="
+          curl -s http://localhost:5173/ | head -25
+          echo "=== mock.js exists ==="
+          curl -sI http://localhost:5173/electron-api-mock.js | head -5
 
       - name: Run e2e
         working-directory: e2e-tests

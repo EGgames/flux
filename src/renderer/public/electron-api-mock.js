@@ -108,6 +108,16 @@
       remove:        noop,
       test:          function() { return Promise.resolve({ success: true, message: 'OK' }) },
       toggleEnabled: function(id, enabled) { return Promise.resolve({ id: id, enabled: enabled }) }
+    },
+
+    // --- audio (server port for streaming) ---
+    audio: {
+      getServerPort: function() { return Promise.resolve(null) }
+    },
+
+    // --- app (logging) ---
+    app: {
+      log: function() { return Promise.resolve() }
     }
   }
 
