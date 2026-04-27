@@ -31,7 +31,10 @@ dist/
 bin/
 
 # Prisma
-prisma/migrations/
+# Migrations DEBEN trackearse: se bundlean en el instalador y se aplican
+# en el primer arranque (ver src/main/db.ts -> ensureSchema).
+prisma/*.db
+prisma/*.db-journal
 
 # Logs
 logs/

@@ -42,6 +42,80 @@ function getBackupDir(): string {
   return path.join(app.getPath('userData'), 'backups')
 }
 
+function getMigrationsDir(): string {
+  // electron-builder bundlea `prisma/migrations/**` dentro de app.asar.
+  // `app.getAppPath()` devuelve la raiz de asar en produccion y la del proyecto en dev.
+  return path.join(app.getAppPath(), 'prisma', 'migrations')
+}
+
+/**
+ * Bootstrap del schema en SQLite leyendo los `migration.sql` bundleados.
+ *
+ * Esto es el fallback que permite al instalador funcionar en cualquier PC sin
+ * depender del binario `prisma` (que NO se empaqueta). Mantenemos un tracker
+ * propio (`_app_migrations`) para no reaplicar dos veces la misma migration.
+ *
+ * Es idempotente: si las tablas ya existen (DB legacy creada antes del tracker),
+ * se ignoran los errores de "already exists" y solo se registran como aplicadas.
+ */
+async function ensureSchema(prisma: PrismaClient): Promise<void> {
+  const migrationsDir = getMigrationsDir()
+  if (!fs.existsSync(migrationsDir)) {
+    log.warn('[db] migrations directory not found at', migrationsDir)
+    return
+  }
+
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "_app_migrations" (
+       "name" TEXT PRIMARY KEY NOT NULL,
+       "applied_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`
+  )
+
+  const applied = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+    'SELECT name FROM "_app_migrations"'
+  )
+  const appliedSet = new Set(applied.map((row) => row.name))
+
+  const migrationDirs = fs
+    .readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+
+  for (const dir of migrationDirs) {
+    if (appliedSet.has(dir)) continue
+
+    const sqlPath = path.join(migrationsDir, dir, 'migration.sql')
+    if (!fs.existsSync(sqlPath)) continue
+
+    const sqlContent = fs.readFileSync(sqlPath, 'utf-8')
+    const statements = sqlContent
+      .split(/;\s*(?:\r?\n|$)/)
+      .map((stmt) => stmt.trim())
+      .filter((stmt) => stmt.length > 0 && !/^--/.test(stmt))
+
+    log.info(`[db] applying migration ${dir} (${statements.length} statements)`)
+
+    for (const stmt of statements) {
+      try {
+        await prisma.$executeRawUnsafe(stmt)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (/already exists/i.test(msg)) {
+          log.warn(`[db] skipping statement (already exists): ${msg}`)
+          continue
+        }
+        log.error(`[db] failed to apply migration ${dir}:`, msg)
+        throw err
+      }
+    }
+
+    await prisma.$executeRawUnsafe('INSERT INTO "_app_migrations" (name) VALUES (?)', dir)
+    log.info(`[db] migration ${dir} applied`)
+  }
+}
+
 /**
  * Inicializa la DB: backup pre-arranque + migrate deploy + cliente Prisma.
  * Idempotente: en el segundo llamado solo devuelve el cliente.
@@ -82,6 +156,16 @@ export async function initDb(): Promise<PrismaClient> {
 
   process.env.DATABASE_URL = `file:${dbPath}`
   prismaInstance = new PrismaClient()
+
+  // Bootstrap del schema: aplica los migration.sql bundleados si las tablas
+  // aun no existen. Imprescindible en producccion donde el binario `prisma`
+  // no se empaqueta y `MigrationService` no puede ejecutar `migrate deploy`.
+  try {
+    await ensureSchema(prismaInstance)
+  } catch (err) {
+    log.error('[db] ensureSchema failed', err)
+  }
+
   return prismaInstance
 }
 
