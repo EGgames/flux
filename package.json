@@ -1,6 +1,6 @@
 {
   "name": "flux",
-  "version": "0.1.2a",
+  "version": "0.1.3a",
   "description": "Radio automation desktop software",
   "main": "out/main/index.js",
   "author": "FLUX",
