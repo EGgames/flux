@@ -67,6 +67,9 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow!.show()
+    if (process.env.FLUX_DEBUG === '1') {
+      mainWindow!.webContents.openDevTools({ mode: 'detach' })
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))

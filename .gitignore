@@ -28,6 +28,7 @@ out/
 # Electron
 out/
 dist/
+bin/
 
 # Prisma
 prisma/migrations/
