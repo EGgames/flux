@@ -22,9 +22,6 @@ jobs:
       - name: Install deps
         run: npm ci --legacy-peer-deps
 
-      - name: Prisma generate
-        run: npx prisma generate
-
       - name: Lint
         run: npm run lint --if-present
 
