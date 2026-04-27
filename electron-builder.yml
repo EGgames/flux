@@ -2,38 +2,59 @@ appId: com.flux.app
 productName: FLUX
 copyright: Copyright © 2026 FLUX
 
+# En produccion el entry point es out/main/launcher.js (configura NODE_PATH
+# para que Node encuentre node_modules/.prisma/client en app.asar.unpacked
+# antes de que el bundle main importe @prisma/client).
+extraMetadata:
+  main: out/main/launcher.js
+
 directories:
   buildResources: build
-  output: dist
+  output: bin
 
 files:
   - out/**/*
-  - node_modules/.prisma/**/*
   - node_modules/@prisma/client/**/*
+  - "node_modules/.prisma/**/*"
+  - "**/node_modules/.prisma/**/*"
   - prisma/schema.prisma
   - "!node_modules/**/{CHANGELOG.md,README.md,*.d.ts}"
 
+# .prisma/client (cliente generado + binario nativo del query engine) NO se
+# incluye via `files` porque el globber de electron-builder ignora prefijos
+# con punto. Lo copiamos como extraResources DENTRO de app.asar.unpacked para
+# que Node lo resuelva como `node_modules/.prisma/client` cuando
+# `@prisma/client/default.js` haga `require('.prisma/client')`.
+extraResources:
+  - from: node_modules/.prisma/client
+    to: app.asar.unpacked/node_modules/.prisma/client
+    filter:
+      - "**/*"
+      - "!*.tmp*"
+
 asarUnpack:
-  - node_modules/.prisma
   - node_modules/@prisma/client
+  - "node_modules/.prisma/**/*"
 
 win:
   target:
     - target: nsis
       arch:
         - x64
-  icon: build/icon.ico
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  installerIcon: build/icon.ico
-  uninstallerIcon: build/icon.ico
 
 mac:
-  target: dmg
-  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.music
 
 linux:
-  target: AppImage
-  icon: build/icon.png
+  target:
+    - AppImage
+  category: AudioVideo
