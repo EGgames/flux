@@ -26,6 +26,8 @@ interface Props {
   minWorkspaceHeight?: number
   maxWorkspaceHeight?: number
   onWorkspaceHeightChange?: (height: number) => void
+  savedHiddenPanelIds?: string[]
+  onHiddenPanelsChange?: (hiddenPanelIds: string[]) => void
   className?: string
 }
 
@@ -63,6 +65,8 @@ export default function PanelWorkspace({
   minWorkspaceHeight = 360,
   maxWorkspaceHeight = 4000,
   onWorkspaceHeightChange,
+  savedHiddenPanelIds,
+  onHiddenPanelsChange,
   className
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -70,8 +74,22 @@ export default function PanelWorkspace({
   const [rects, setRects] = useState<Record<string, PanelRect>>(() => applyDefaults(panels, savedLayout))
   const [order, setOrder] = useState<string[]>(() => panels.map((panel) => panel.id))
   const [isMobile, setIsMobile] = useState(false)
-  const [hiddenPanelIds, setHiddenPanelIds] = useState<string[]>([])
+  const [hiddenPanelIds, setHiddenPanelIds] = useState<string[]>(() => savedHiddenPanelIds ?? [])
   const [showAddMenu, setShowAddMenu] = useState(false)
+
+  // Sincronizar hiddenPanelIds desde props (ej: cambio de perfil/contexto).
+  // Solo aplicar si el array externo difiere del estado actual para evitar loops.
+  const savedHiddenKey = savedHiddenPanelIds ? savedHiddenPanelIds.join('|') : null
+  useEffect(() => {
+    if (savedHiddenPanelIds === undefined) return
+    setHiddenPanelIds((prev) => {
+      if (prev.length === savedHiddenPanelIds.length && prev.every((id, i) => id === savedHiddenPanelIds[i])) {
+        return prev
+      }
+      return savedHiddenPanelIds
+    })
+    // savedHiddenKey colapsa el array a string para que el efecto dispare solo en cambios reales.
+  }, [savedHiddenKey])
 
   const dragStateRef = useRef<{
     panelId: string
@@ -139,9 +157,18 @@ export default function PanelWorkspace({
     [panels, hiddenPanelIds]
   )
 
-  const closePanel = (id: string) => setHiddenPanelIds((prev) => [...prev, id])
+  const closePanel = (id: string) => setHiddenPanelIds((prev) => {
+    if (prev.includes(id)) return prev
+    const next = [...prev, id]
+    onHiddenPanelsChange?.(next)
+    return next
+  })
   const reopenPanel = (id: string) => {
-    setHiddenPanelIds((prev) => prev.filter((h) => h !== id))
+    setHiddenPanelIds((prev) => {
+      const next = prev.filter((h) => h !== id)
+      onHiddenPanelsChange?.(next)
+      return next
+    })
     setShowAddMenu(false)
   }
 
@@ -266,6 +293,7 @@ export default function PanelWorkspace({
     setRects(next)
     rectsRef.current = next
     setHiddenPanelIds([])
+    onHiddenPanelsChange?.([])
     onLayoutChange?.(next)
     // Tras restablecer corremos auto-fit para que el resultado quepa compacto.
     window.setTimeout(() => handleAutoFit(), 0)

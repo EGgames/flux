@@ -8,6 +8,7 @@ type LayoutMap = Record<string, PanelRect>
 interface WorkspacePreferences {
   workspaceLayouts?: Record<string, Record<string, LayoutMap>>
   workspaceHeights?: Record<string, Record<string, number>>
+  workspaceHiddenPanels?: Record<string, Record<string, string[]>>
 }
 
 function parsePreferences(raw: string | undefined): WorkspacePreferences {
@@ -27,6 +28,7 @@ export function useWorkspaceLayout(
 ) {
   const [layout, setLayout] = useState<LayoutMap>({})
   const [workspaceHeight, setWorkspaceHeight] = useState<number>(540)
+  const [hiddenPanelIds, setHiddenPanelIds] = useState<string[]>([])
   const preferencesRef = useRef<WorkspacePreferences>({})
 
   useEffect(() => {
@@ -34,6 +36,7 @@ export function useWorkspaceLayout(
     preferencesRef.current = parsed
     setLayout(parsed.workspaceLayouts?.[workspaceKey]?.[contextKey] ?? {})
     setWorkspaceHeight(parsed.workspaceHeights?.[workspaceKey]?.[contextKey] ?? 540)
+    setHiddenPanelIds(parsed.workspaceHiddenPanels?.[workspaceKey]?.[contextKey] ?? [])
   }, [profile?.id, profile?.preferences, workspaceKey, contextKey])
 
   const saveLayout = useCallback(
@@ -80,5 +83,27 @@ export function useWorkspaceLayout(
     [profile, workspaceKey, contextKey]
   )
 
-  return { layout, saveLayout, workspaceHeight, saveWorkspaceHeight }
+  const saveHiddenPanelIds = useCallback(
+    async (nextHidden: string[]) => {
+      setHiddenPanelIds(nextHidden)
+      if (!profile) return
+
+      const nextPreferences: WorkspacePreferences = {
+        ...preferencesRef.current,
+        workspaceHiddenPanels: {
+          ...(preferencesRef.current.workspaceHiddenPanels ?? {}),
+          [workspaceKey]: {
+            ...(preferencesRef.current.workspaceHiddenPanels?.[workspaceKey] ?? {}),
+            [contextKey]: nextHidden
+          }
+        }
+      }
+
+      preferencesRef.current = nextPreferences
+      await profileService.update(profile.id, { preferences: JSON.stringify(nextPreferences) })
+    },
+    [profile, workspaceKey, contextKey]
+  )
+
+  return { layout, saveLayout, workspaceHeight, saveWorkspaceHeight, hiddenPanelIds, saveHiddenPanelIds }
 }

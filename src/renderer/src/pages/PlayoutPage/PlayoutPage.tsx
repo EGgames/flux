@@ -91,7 +91,7 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
   const { programs } = usePrograms(activeProfile?.id ?? null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('')
   const [layoutProgramId, setLayoutProgramId] = useState<string>('')
-  const { layout, saveLayout, workspaceHeight, saveWorkspaceHeight } = useWorkspaceLayout(activeProfile, 'playout-workspace', layoutProgramId || '__default')
+  const { layout, saveLayout, workspaceHeight, saveWorkspaceHeight, hiddenPanelIds, saveHiddenPanelIds } = useWorkspaceLayout(activeProfile, 'playout-workspace', layoutProgramId || '__default')
   const { status, error, start, stop, prev, next, jumpTo, stopAd } = playout
 
   const handleChangePlaylist = useCallback(() => {
@@ -790,6 +790,8 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
         onLayoutChange={saveLayout}
         workspaceHeight={workspaceHeight}
         onWorkspaceHeightChange={saveWorkspaceHeight}
+        savedHiddenPanelIds={hiddenPanelIds}
+        onHiddenPanelsChange={saveHiddenPanelIds}
       />
     </div>
   )
