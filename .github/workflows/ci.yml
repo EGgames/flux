@@ -63,6 +63,16 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Serve renderer for E2E
+        run: |
+          python3 -m http.server 5173 --directory out/renderer &
+          echo $! > /tmp/e2e_server.pid
+          # Wait until the server is accepting connections (max 15s)
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:5173/ > /dev/null 2>&1 && echo "Server ready" && break
+            sleep 1
+          done
+
       - name: Run e2e
         working-directory: e2e-tests
         run: mvn -B verify
