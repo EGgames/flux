@@ -11,6 +11,9 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- En Electron el preload ya define window.electronAPI; el mock hace noop.
+         En web/CI provee stubs para que React renderice sin crashes. -->
+    <script src="/electron-api-mock.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

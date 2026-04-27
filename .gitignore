@@ -43,3 +43,7 @@ yarn-error.log*
 # Build directories
 build/
 release/
+
+# Java compiled classes and Maven target
+e2e-tests/target/
+*.class
