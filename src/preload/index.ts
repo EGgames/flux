@@ -149,12 +149,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     triggerAdBlock: (adBlockId: string) => ipcRenderer.invoke('playout:trigger-ad', adBlockId),
     adEndAck: () => ipcRenderer.invoke('playout:ad-end-ack'),
     stopAd: () => ipcRenderer.invoke('playout:stop-ad'),
-    streamChunk: (chunk: ArrayBuffer) => ipcRenderer.invoke('playout:stream-chunk', chunk)
+    streamChunk: (chunk: ArrayBuffer) => ipcRenderer.invoke('playout:stream-chunk', chunk),
+    /** Reporta posicion del track activo al main para watchdog/telemetria. */
+    reportPosition: (payload: { trackId: string | null; positionMs: number | null; isPlaying: boolean }) =>
+      ipcRenderer.invoke('playout:report-position', payload)
   },
 
   // ── Audio HTTP server port ────────────────────────────────────
   audio: {
     getServerPort: () => ipcRenderer.invoke('audio:server-port')
+  },
+
+  // ── App-level (logger, etc.) ──────────────────────────────
+  app: {
+    log: (payload: { level: 'info' | 'warn' | 'error'; message: string; context?: unknown }) =>
+      ipcRenderer.invoke('app:log', payload)
   },
 
   // ── Window Controls ───────────────────────────────────────────
@@ -176,6 +185,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'playout:ad-pending',
       'playout:error',
       'playout:queue-update',
+      'playout:stall',
       'scheduler:program-changed',
       'streaming:status-changed'
     ]

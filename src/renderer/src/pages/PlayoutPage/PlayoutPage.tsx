@@ -37,6 +37,7 @@ interface Props {
     jumpTo: (index: number) => void
     seek: (sec: number) => void
     changePlaylist: (profileId: string, playlistId: string | null) => Promise<void>
+    stopAd: () => Promise<void>
     currentSec: number
     durationSec: number
     adBreakTimer: {
@@ -117,6 +118,90 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
       setGeneralPlaylistId('')
     }
   }, [activeProfile])
+
+  // ──────────────────────────────────────────────────────────────────
+  // Live scratch throttling.
+  // El platter dispara onScratch a 60-120 Hz. HTML5 <audio> NO banca
+  // tantos seeks/seg: cada uno reabre buffering y eventualmente el
+  // elemento queda colgado en estado `seeking` (audio mudo hasta que
+  // se reseekea hacia adelante manualmente).
+  // Estrategia:
+  //   - Mantenemos `livePosRef` con la posicion logica actualizada
+  //     sincrono en cada delta para feedback visual via setCurrentSec.
+  //   - Aplicamos `playout.seek()` real como mucho 1 vez cada 250ms
+  //     durante el gesto, mas un flush final en pointerup.
+  // ──────────────────────────────────────────────────────────────────
+  const livePosRef = useRef(playout.currentSec)
+  const liveScratchActiveRef = useRef(false)
+  const liveScratchTimerRef = useRef<number | null>(null)
+  const liveScratchLastSeekAtRef = useRef(0)
+  const LIVE_SCRATCH_THROTTLE_MS = 250
+  // Mirror sincrono de currentSec para leer al inicio del gesto sin depender del re-render.
+  const playoutCurrentSecRef = useRef(playout.currentSec)
+  useEffect(() => { playoutCurrentSecRef.current = playout.currentSec }, [playout.currentSec])
+
+  // Sincroniza el ref con la posicion real cuando NO estamos scratcheando.
+  useEffect(() => {
+    if (!liveScratchActiveRef.current && liveScratchTimerRef.current === null) {
+      livePosRef.current = playout.currentSec
+    }
+  }, [playout.currentSec])
+
+  useEffect(() => {
+    return () => {
+      if (liveScratchTimerRef.current !== null) {
+        clearTimeout(liveScratchTimerRef.current)
+        liveScratchTimerRef.current = null
+      }
+    }
+  }, [])
+
+  const handleLiveScratchStart = useCallback(() => {
+    // Sincroniza la posicion logica con la real al iniciar el gesto, para que
+    // el primer delta acumule sobre el "ahora" del playout (no sobre un valor stale).
+    livePosRef.current = playoutCurrentSecRef.current
+    liveScratchActiveRef.current = true
+    liveScratchLastSeekAtRef.current = performance.now()
+  }, [])
+
+  const handleLiveScratch = useCallback((deltaSec: number) => {
+    const dur = playout.durationSec || 0
+    // Clamp con margen del final para no disparar onend mid-scratch
+    // (que avanzaria al siguiente track con el dedo todavia en el platter).
+    const safeMax = dur > 0 ? Math.max(0, dur - 0.25) : 0
+    const next = Math.max(0, dur > 0 ? Math.min(safeMax, livePosRef.current + deltaSec) : livePosRef.current + deltaSec)
+    livePosRef.current = next
+    liveScratchActiveRef.current = true
+
+    const now = performance.now()
+    const sinceLast = now - liveScratchLastSeekAtRef.current
+    if (sinceLast >= LIVE_SCRATCH_THROTTLE_MS && liveScratchTimerRef.current === null) {
+      // Aplica seek inmediatamente respetando el throttle.
+      liveScratchLastSeekAtRef.current = now
+      playout.seek(livePosRef.current)
+      return
+    }
+    if (liveScratchTimerRef.current !== null) return
+    // Programa un seek diferido al cumplirse el throttle.
+    const wait = Math.max(16, LIVE_SCRATCH_THROTTLE_MS - sinceLast)
+    liveScratchTimerRef.current = window.setTimeout(() => {
+      liveScratchTimerRef.current = null
+      liveScratchLastSeekAtRef.current = performance.now()
+      playout.seek(livePosRef.current)
+    }, wait)
+  }, [playout.durationSec, playout.seek])
+
+  const handleLiveScratchEnd = useCallback(() => {
+    // Cancela cualquier seek pendiente y aplica el final sincrono para que la
+    // reproduccion arranque exactamente desde donde el usuario solto el platter.
+    if (liveScratchTimerRef.current !== null) {
+      clearTimeout(liveScratchTimerRef.current)
+      liveScratchTimerRef.current = null
+    }
+    playout.seek(livePosRef.current)
+    liveScratchActiveRef.current = false
+    liveScratchLastSeekAtRef.current = 0
+  }, [playout.seek])
 
   const saveGeneralPlaylist = useCallback(async (playlistId: string) => {
     if (!activeProfile) return
@@ -574,7 +659,20 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
       minW: 480,
       minH: 280,
       defaultRect: { x: 12, y: 1280, w: 720, h: 320 },
-      content: <MixerDJ profileId={activeProfile?.id ?? null} />
+      content: (
+        <MixerDJ
+          profileId={activeProfile?.id ?? null}
+          liveTrack={{
+            name: status.track?.name ?? null,
+            playing: status.state === 'playing',
+            positionSec: playout.currentSec,
+            durationSec: playout.durationSec
+          }}
+          onLiveScratch={handleLiveScratch}
+          onLiveScratchStart={handleLiveScratchStart}
+          onLiveScratchEnd={handleLiveScratchEnd}
+        />
+      )
     },
     {
       id: 'vuMeter',
@@ -639,6 +737,9 @@ export default function PlayoutPage({ activeProfile, profiles, playout }: Props)
     playout.currentSec,
     playout.durationSec,
     playout.seek,
+    handleLiveScratch,
+    handleLiveScratchStart,
+    handleLiveScratchEnd,
     playout.changePlaylist,
     playout.pendingAdBlock,
     selectedQueueIdx,

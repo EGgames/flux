@@ -36,13 +36,161 @@
 .deckLabel {
   color: #3a7bd5;
 }
+/* Turntable / platter giratorio. Gira mientras .platterSpinning este aplicado. */
+.platterWrap {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 4px auto 6px;
+}
 
+.platterRing {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg); /* progreso arranca arriba */
+}
+
+.platterRingBg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 4;
+}
+
+.platterRingFg {
+  fill: none;
+  stroke: #3a7bd5;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s linear;
+  filter: drop-shadow(0 0 4px rgba(58, 123, 213, 0.5));
+}
+
+.platter {
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #1a1a1a 0%, #0a0a0a 60%, #050505 100%);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.8),
+    0 4px 12px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Surcos del vinilo: anillos concentricos sutiles. */
+.platterGroove {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.02) 0px,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  pointer-events: none;
+}
+
+/* Marcador que muestra la rotacion (linea blanca de un radio). */
+.platterMarker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.6), transparent);
+  transform-origin: top center;
+  transform: translate(-50%, 0);
+  border-radius: 2px;
+}
+
+.platterCenter {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #d63b56 0%, #8a2438 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 3px rgba(0, 0, 0, 0.6),
+    0 0 0 5px rgba(255, 255, 255, 0.08),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.platterDeckId {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Animacion de giro: el platter (incluye groove + marker + center) rota.
+   Velocidad realista de turntable a 33 1/3 rpm => 1.8s por vuelta. */
+@keyframes platterSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.platterSpinning .platter {
+  animation: platterSpin 1.8s linear infinite;
+}
+
+.platterScratchable {
+  cursor: grab;
+  touch-action: none; /* evita el pan/zoom del navegador al arrastrar */
+}
+
+.platterDragging {
+  cursor: grabbing;
+}
+
+.platterDragging .platter {
+  /* Anula la animacion mientras el usuario arrastra; el inline transform manda. */
+  animation: none !important;
+}
 .cueBadge {
   background: #d63b56;
   color: #fff;
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 10px;
+}
+
+.liveBadge {
+  margin-left: 8px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(46, 204, 113, 0.18);
+  color: #2ecc71;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.liveSourceHint {
+  padding: 6px 8px;
+  background: rgba(46, 204, 113, 0.08);
+  border: 1px dashed rgba(46, 204, 113, 0.4);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  text-align: center;
 }
 
 .deckBody {
@@ -144,6 +292,35 @@
 .cfLabelA, .cfLabelB {
   font-weight: 700;
   color: #3a7bd5;
+}
+
+.scratchMonitorBtn {
+  margin-left: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.scratchMonitorBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.scratchMonitorBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.scratchMonitorActive {
+  background: rgba(58, 200, 120, 0.18);
+  border-color: rgba(58, 200, 120, 0.5);
+  color: #6fe3a3;
 }
 
 .monitorHint {

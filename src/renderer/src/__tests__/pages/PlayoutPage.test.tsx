@@ -243,7 +243,8 @@ describe('PlayoutPage', () => {
 
     render(<PlayoutPage activeProfile={profile} profiles={profilesProp} playout={queuePlayout} />)
 
-    expect(screen.getByText('Tema Local')).toBeInTheDocument()
+    // El nombre del tema aparece en "Now playing" y tambien en el Deck A del Mixer DJ (LIVE).
+    expect(screen.getAllByText('Tema Local').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('tema.mp3')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('slider', { name: '' }), { target: { value: '25' } })
     expect(queuePlayout.seek).toHaveBeenCalledWith(25)

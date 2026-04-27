@@ -1,5 +1,10 @@
 import { ipcMain } from 'electron'
 import type { PrismaClient } from '@prisma/client'
+import { z } from 'zod'
+import { validatedHandle } from '../utils/ipcValidation'
+
+const profileIdSchema = z.string().min(1)
+const idSchema = z.string().min(1)
 
 export function registerPlaylistIpc(db: PrismaClient): void {
   ipcMain.handle('playlist:list', async (_event, profileId: string) => {
@@ -22,9 +27,12 @@ export function registerPlaylistIpc(db: PrismaClient): void {
     })
   })
 
-  ipcMain.handle('playlist:create', async (_event, data: { name: string; profileId: string }) => {
-    return db.playlist.create({ data })
-  })
+  // Ejemplo de validacion Zod en IPC: el payload debe tener name no-vacio y profileId.
+  validatedHandle(
+    'playlist:create',
+    z.object({ name: z.string().min(1, 'name no puede estar vacio'), profileId: profileIdSchema }),
+    async (_event, data) => db.playlist.create({ data })
+  )
 
   ipcMain.handle(
     'playlist:update',
@@ -67,4 +75,7 @@ export function registerPlaylistIpc(db: PrismaClient): void {
     }
     return { success: true }
   })
+
+  // marcador: idSchema reservada para futuros validadores granulares
+  void idSchema
 }

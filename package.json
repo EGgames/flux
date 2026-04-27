@@ -23,20 +23,21 @@
     "@prisma/client": "^5.22.0",
     "electron-log": "^5.2.4",
     "electron-updater": "^6.3.9",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
-    "@vitest/coverage-v8": "^2.1.9",
     "@types/howler": "^2.2.11",
     "@types/node": "^22.10.0",
     "@types/node-cron": "^3.0.11",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^2.1.9",
     "electron": "^33.4.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",

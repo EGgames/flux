@@ -29,9 +29,11 @@ interface Props {
   className?: string
 }
 
-type DragMode = 'move' | 'resize'
+type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+type DragMode = { kind: 'move' } | { kind: 'resize'; dir: ResizeDir }
 
 const MOBILE_BREAKPOINT = 920
+const WORKSPACE_BOTTOM_PADDING = 24
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
@@ -59,7 +61,7 @@ export default function PanelWorkspace({
   onLayoutChange,
   workspaceHeight = 540,
   minWorkspaceHeight = 360,
-  maxWorkspaceHeight = 980,
+  maxWorkspaceHeight = 4000,
   onWorkspaceHeightChange,
   className
 }: Props) {
@@ -149,6 +151,7 @@ export default function PanelWorkspace({
     if (!panelRect) return
 
     event.preventDefault()
+    event.stopPropagation()
     setOrder((prev) => [...prev.filter((id) => id !== panelId), panelId])
 
     dragStateRef.current = {
@@ -166,7 +169,6 @@ export default function PanelWorkspace({
       if (!drag || !containerRef.current) return
 
       const containerWidth = containerRef.current.clientWidth
-      const containerHeight = containerRef.current.clientHeight
       const deltaX = event.clientX - drag.startX
       const deltaY = event.clientY - drag.startY
       const panelConfig = panelLookup[drag.panelId]
@@ -177,22 +179,34 @@ export default function PanelWorkspace({
         const current = prev[drag.panelId] ?? drag.startRect
         let next: PanelRect
 
-        if (drag.mode === 'move') {
+        if (drag.mode.kind === 'move') {
           const maxX = Math.max(containerWidth - current.w, 0)
-          const maxY = Math.max(containerHeight - current.h, 0)
           next = {
             ...current,
             x: clamp(drag.startRect.x + deltaX, 0, maxX),
-            y: clamp(drag.startRect.y + deltaY, 0, maxY)
+            y: Math.max(drag.startRect.y + deltaY, 0)
           }
         } else {
-          const maxW = Math.max(containerWidth - current.x, minW)
-          const maxH = Math.max(containerHeight - current.y, minH)
-          next = {
-            ...current,
-            w: clamp(drag.startRect.w + deltaX, minW, maxW),
-            h: clamp(drag.startRect.h + deltaY, minH, maxH)
+          const dir = drag.mode.dir
+          let { x, y, w, h } = drag.startRect
+          if (dir.includes('e')) {
+            const maxW = Math.max(containerWidth - x, minW)
+            w = clamp(drag.startRect.w + deltaX, minW, maxW)
           }
+          if (dir.includes('s')) {
+            h = Math.max(drag.startRect.h + deltaY, minH)
+          }
+          if (dir.includes('w')) {
+            const proposedX = clamp(drag.startRect.x + deltaX, 0, drag.startRect.x + drag.startRect.w - minW)
+            w = drag.startRect.x + drag.startRect.w - proposedX
+            x = proposedX
+          }
+          if (dir.includes('n')) {
+            const proposedY = clamp(drag.startRect.y + deltaY, 0, drag.startRect.y + drag.startRect.h - minH)
+            h = drag.startRect.y + drag.startRect.h - proposedY
+            y = proposedY
+          }
+          next = { x, y, w, h }
         }
 
         const updated = { ...prev, [drag.panelId]: next }
@@ -220,22 +234,25 @@ export default function PanelWorkspace({
 
     const width = containerRef.current.clientWidth
     const columns = width > 1280 ? 3 : width > 980 ? 2 : 1
-    const gap = 24
-    const padding = 16
-    const rowHeight = 280
-    const panelHeight = 260
+    const gap = 12
+    const padding = 12
     const usableWidth = width - padding * 2
     const panelWidth = Math.floor((usableWidth - gap * (columns - 1)) / columns)
 
+    // Layout en grilla por columnas, donde cada columna acumula la altura real
+    // (minH) de cada panel. Asi el resultado es compacto y respeta los minimos.
+    const columnBottoms = new Array<number>(columns).fill(padding)
     const next = sortedPanels.reduce<Record<string, PanelRect>>((acc, panel, index) => {
       const col = index % columns
-      const row = Math.floor(index / columns)
+      const minH = panel.minH ?? 220
+      const h = Math.max(panel.defaultRect.h, minH)
       acc[panel.id] = {
         x: padding + col * (panelWidth + gap),
-        y: padding + row * rowHeight,
+        y: columnBottoms[col],
         w: panelWidth,
-        h: panelHeight
+        h
       }
+      columnBottoms[col] += h + gap
       return acc
     }, {})
 
@@ -244,10 +261,35 @@ export default function PanelWorkspace({
     onLayoutChange?.(next)
   }
 
-  const updateWorkspaceHeight = (nextHeight: number) => {
-    const clamped = clamp(nextHeight, minWorkspaceHeight, maxWorkspaceHeight)
-    onWorkspaceHeightChange?.(clamped)
+  const handleReset = () => {
+    const next = applyDefaults(panels, undefined)
+    setRects(next)
+    rectsRef.current = next
+    setHiddenPanelIds([])
+    onLayoutChange?.(next)
+    // Tras restablecer corremos auto-fit para que el resultado quepa compacto.
+    window.setTimeout(() => handleAutoFit(), 0)
   }
+
+  // Altura del workspace = bottom mas bajo entre los paneles + padding, dentro
+  // de los limites min/max. Asi crece o se achica automaticamente al estirar /
+  // achicar paneles, sin necesidad de control manual.
+  const computedHeight = useMemo(() => {
+    const maxBottom = sortedPanels.reduce((max, panel) => {
+      const rect = rects[panel.id] ?? panel.defaultRect
+      return Math.max(max, rect.y + rect.h)
+    }, 0)
+    const base = Math.max(maxBottom + WORKSPACE_BOTTOM_PADDING, minWorkspaceHeight)
+    return Math.min(base, maxWorkspaceHeight)
+  }, [sortedPanels, rects, minWorkspaceHeight, maxWorkspaceHeight])
+
+  // Notificar al hook de persistencia para que recuerde la altura final.
+  useEffect(() => {
+    if (isMobile) return
+    if (computedHeight !== workspaceHeight) {
+      onWorkspaceHeightChange?.(computedHeight)
+    }
+  }, [computedHeight, workspaceHeight, isMobile, onWorkspaceHeightChange])
 
   return (
     <div className={`${styles.workspaceWrap}${className ? ` ${className}` : ''}`}>
@@ -255,22 +297,11 @@ export default function PanelWorkspace({
         <span className={styles.toolbarHint}>
           {isMobile
             ? 'Vista compacta activa: los paneles se apilan para pantallas chicas.'
-            : 'Arrastra el encabezado para mover paneles y la esquina para redimensionar.'}
+            : 'Arrastra el encabezado para mover paneles y los bordes o esquinas para redimensionar.'}
         </span>
         <div className={styles.toolbarControls}>
-          <button className={styles.toolbarBtn} onClick={() => updateWorkspaceHeight(workspaceHeight - 80)}>-</button>
-          <input
-            type="range"
-            min={minWorkspaceHeight}
-            max={maxWorkspaceHeight}
-            value={workspaceHeight}
-            onChange={(event) => updateWorkspaceHeight(Number(event.target.value))}
-            className={styles.sizeSlider}
-            aria-label="Tamaño del área de ventanas"
-          />
-          <button className={styles.toolbarBtn} onClick={() => updateWorkspaceHeight(workspaceHeight + 80)}>+</button>
-          <span className={styles.sizeValue}>{workspaceHeight}px</span>
           <button className={styles.toolbarBtn} onClick={handleAutoFit}>Auto-ajustar</button>
+          <button className={styles.toolbarBtn} onClick={handleReset} title="Volver al layout por defecto">Restablecer</button>
           {hiddenPanels.length > 0 && (
             <div className={styles.addPanelWrap}>
               <button className={`${styles.toolbarBtn} ${styles.toolbarBtnAccent}`} onClick={() => setShowAddMenu((v) => !v)}>
@@ -293,7 +324,7 @@ export default function PanelWorkspace({
       <div
         ref={containerRef}
         className={`${styles.workspace}${isMobile ? ` ${styles.mobile}` : ''}`}
-        style={isMobile ? undefined : { height: `${workspaceHeight}px` }}
+        style={isMobile ? undefined : { height: `${computedHeight}px` }}
       >
         {sortedPanels.map((panel, index) => {
           const rect = rects[panel.id] ?? panel.defaultRect
@@ -316,7 +347,7 @@ export default function PanelWorkspace({
             >
               <header
                 className={styles.panelHeader}
-                onMouseDown={(event) => startInteraction(event, panel.id, 'move')}
+                onMouseDown={(event) => startInteraction(event, panel.id, { kind: 'move' })}
               >
                 <h3 className={styles.panelTitle}>{panel.title}</h3>
                 <div className={styles.panelHeaderRight}>
@@ -333,11 +364,17 @@ export default function PanelWorkspace({
               </header>
               <div className={styles.panelBody}>{panel.content}</div>
               {!isMobile && (
-                <button
-                  className={styles.resizeHandle}
-                  onMouseDown={(event) => startInteraction(event, panel.id, 'resize')}
-                  aria-label={`Redimensionar panel ${panel.title}`}
-                />
+                <>
+                  {(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as ResizeDir[]).map((dir) => (
+                    <div
+                      key={dir}
+                      className={`${styles.resizeEdge} ${styles[`resizeEdge_${dir}`]}`}
+                      onMouseDown={(event) => startInteraction(event, panel.id, { kind: 'resize', dir })}
+                      aria-label={`Redimensionar panel ${panel.title} (${dir})`}
+                      role="separator"
+                    />
+                  ))}
+                </>
               )}
             </section>
           )

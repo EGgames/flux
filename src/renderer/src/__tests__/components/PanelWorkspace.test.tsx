@@ -44,7 +44,7 @@ describe('PanelWorkspace', () => {
     expect(screen.getByText('contenido A')).toBeInTheDocument()
   })
 
-  it('invokes onWorkspaceHeightChange via slider, +/- buttons', () => {
+  it('no longer renders the px height slider/buttons (eliminado en favor de redimensionado por bordes)', () => {
     const onHeight = vi.fn()
     render(
       <PanelWorkspace
@@ -56,19 +56,11 @@ describe('PanelWorkspace', () => {
       />
     )
 
-    fireEvent.click(screen.getByText('+'))
-    expect(onHeight).toHaveBeenLastCalledWith(580)
-
-    fireEvent.click(screen.getByText('-'))
-    expect(onHeight).toHaveBeenLastCalledWith(420)
-
-    const slider = screen.getByLabelText('Tamaño del área de ventanas') as HTMLInputElement
-    fireEvent.change(slider, { target: { value: '700' } })
-    expect(onHeight).toHaveBeenLastCalledWith(700)
-
-    // Clamp al máximo
-    fireEvent.change(slider, { target: { value: '9999' } })
-    expect(onHeight).toHaveBeenLastCalledWith(800)
+    expect(screen.queryByLabelText('Tamaño del área de ventanas')).not.toBeInTheDocument()
+    expect(screen.queryByText('+')).not.toBeInTheDocument()
+    expect(screen.queryByText('-')).not.toBeInTheDocument()
+    // Auto-ajustar sigue disponible
+    expect(screen.getByText('Auto-ajustar')).toBeInTheDocument()
   })
 
   it('Auto-ajustar reorganiza paneles y dispara onLayoutChange', () => {

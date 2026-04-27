@@ -44,11 +44,24 @@ export function useMixer(profileId: string | null) {
   })
   const [crossfaderPos, setCrossfaderPos] = useState(0)
   const [monitorAvailable, setMonitorAvailable] = useState(false)
+  const [monitorDeviceId, setMonitorDeviceId] = useState<string | null>(null)
 
   const howlRefs = useRef<{ A: Howl | null; B: Howl | null }>({ A: null, B: null })
   const audioServerPortRef = useRef<number | null>(null)
   const monitorDeviceIdRef = useRef<string | null>(null)
   const mainDeviceIdRef = useRef<string | null>('default')
+  // Scratch seek throttling por deck. HTML5 <audio> NO banca 60 seeks/seg
+  // (cada uno reabre buffering y el elemento se cuelga en estado `seeking`).
+  // Hacemos un seek real maximo cada SCRATCH_THROTTLE_MS y un flush final
+  // en flushScratch cuando el usuario suelta el platter.
+  // dirty[deck]=true → en el gesto actual hubo al menos un scratchDeck()
+  // y por tanto scratchPosRef tiene una posicion valida que aplicar en
+  // flushScratch (sin esto un tap accidental seekearia a 0 stale).
+  const scratchPosRef = useRef<{ A: number; B: number }>({ A: 0, B: 0 })
+  const scratchTimerRef = useRef<{ A: number | null; B: number | null }>({ A: null, B: null })
+  const scratchLastSeekAtRef = useRef<{ A: number; B: number }>({ A: 0, B: 0 })
+  const scratchDirtyRef = useRef<{ A: boolean; B: boolean }>({ A: false, B: false })
+  const SCRATCH_THROTTLE_MS = 250
   const tickRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -64,6 +77,7 @@ export function useMixer(profileId: string | null) {
     if (!profileId) {
       monitorDeviceIdRef.current = null
       setMonitorAvailable(false)
+      setMonitorDeviceId(null)
       return
     }
     const load = async (): Promise<void> => {
@@ -95,8 +109,10 @@ export function useMixer(profileId: string | null) {
           }
         }
         setMonitorAvailable(Boolean(monitorDeviceIdRef.current))
+        setMonitorDeviceId(monitorDeviceIdRef.current)
       } catch {
         setMonitorAvailable(false)
+        setMonitorDeviceId(null)
       }
     }
     void load()
@@ -238,9 +254,80 @@ export function useMixer(profileId: string | null) {
         try { h.unload() } catch { /* no-op */ }
       }
       howlRefs.current[id] = null
+      const t = scratchTimerRef.current[id]
+      if (t !== null) {
+        clearTimeout(t)
+        scratchTimerRef.current[id] = null
+      }
+      scratchDirtyRef.current[id] = false
+      scratchLastSeekAtRef.current[id] = 0
     }
     setDecks({ A: initialDeck(), B: initialDeck() })
     setCrossfaderPos(0)
+  }, [])
+
+  // Scratch / jog: aplica un delta de segundos al deck (positivo = avanzar, negativo = rebobinar).
+  // Usado por el platter arrastrable. No depende de playing: si esta pausado igual permite buscar.
+  const scratchDeck = useCallback((deck: DeckId, deltaSec: number): void => {
+    const howl = howlRefs.current[deck]
+    if (!howl) return
+    try {
+      // En el primer delta del gesto sincronizamos la posicion logica con
+      // la real del howl. Usamos !dirty como senal de "primer delta".
+      if (!scratchDirtyRef.current[deck]) {
+        const cur = howl.seek() as number
+        if (typeof cur !== 'number' || !isFinite(cur)) return
+        scratchPosRef.current[deck] = cur
+        scratchLastSeekAtRef.current[deck] = performance.now()
+      }
+      const dur = (howl.duration() as number) || 0
+      const target = scratchPosRef.current[deck] + deltaSec
+      // Clamp con margen del final: tocar exactamente `duration` con seek
+      // dispara `onend` de Howler mid-scratch (track salta o se descarga).
+      const safeMax = dur > 0 ? Math.max(0, dur - 0.25) : 0
+      const next = dur > 0 ? Math.max(0, Math.min(safeMax, target)) : Math.max(0, target)
+      scratchPosRef.current[deck] = next
+      scratchDirtyRef.current[deck] = true
+      // Update visual de posicion sincrono.
+      setDecks((prev) => ({ ...prev, [deck]: { ...prev[deck], positionSec: next } }))
+
+      // Throttle de seeks reales: como mucho 1 cada SCRATCH_THROTTLE_MS.
+      const now = performance.now()
+      const sinceLast = now - scratchLastSeekAtRef.current[deck]
+      if (sinceLast >= SCRATCH_THROTTLE_MS && scratchTimerRef.current[deck] === null) {
+        scratchLastSeekAtRef.current[deck] = now
+        try { howl.seek(scratchPosRef.current[deck]) } catch { /* no-op */ }
+        return
+      }
+      if (scratchTimerRef.current[deck] !== null) return
+      const wait = Math.max(16, SCRATCH_THROTTLE_MS - sinceLast)
+      scratchTimerRef.current[deck] = window.setTimeout(() => {
+        scratchTimerRef.current[deck] = null
+        scratchLastSeekAtRef.current[deck] = performance.now()
+        const h = howlRefs.current[deck]
+        if (!h) return
+        try { h.seek(scratchPosRef.current[deck]) } catch { /* no-op */ }
+      }, wait)
+    } catch { /* no-op */ }
+  }, [])
+
+  // Aplica el seek pendiente del deck (cancela timer). Se llama al soltar el platter
+  // para que la reproduccion arranque exactamente desde la posicion final.
+  // Si en el gesto no hubo scratch real (tap sin movimiento), NO seekeamos:
+  // hacerlo podria mandar el deck a la posicion 0 (ref stale) y silenciar el audio.
+  const flushScratch = useCallback((deck: DeckId): void => {
+    const t = scratchTimerRef.current[deck]
+    if (t !== null) {
+      clearTimeout(t)
+      scratchTimerRef.current[deck] = null
+    }
+    const wasDirty = scratchDirtyRef.current[deck]
+    scratchDirtyRef.current[deck] = false
+    scratchLastSeekAtRef.current[deck] = 0
+    if (!wasDirty) return
+    const howl = howlRefs.current[deck]
+    if (!howl) return
+    try { howl.seek(scratchPosRef.current[deck]) } catch { /* no-op */ }
   }, [])
 
   // Tick para actualizar posicion
@@ -277,11 +364,14 @@ export function useMixer(profileId: string | null) {
     decks,
     crossfaderPos,
     monitorAvailable,
+    monitorDeviceId,
     loadAsset,
     playPause,
     setCrossfader,
     setDeckVolume,
     toggleCue,
+    scratchDeck,
+    flushScratch,
     unloadAll
   }
 }

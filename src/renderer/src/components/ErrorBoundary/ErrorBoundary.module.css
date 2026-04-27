@@ -1,0 +1,62 @@
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 30, 0.92);
+  z-index: 9999;
+  padding: 24px;
+}
+
+.panel {
+  background: #1f1f3a;
+  color: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 720px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  color: #ff6b6b;
+}
+
+.msg {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.stack {
+  background: #0d0d20;
+  color: #9ec5fe;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.actions button {
+  background: #4361ee;
+  color: #fff;
+  border: 0;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.actions button:hover {
+  background: #3a52d3;
+}

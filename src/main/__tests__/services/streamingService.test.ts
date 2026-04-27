@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('electron-log', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
@@ -25,6 +25,11 @@ describe('StreamingService', () => {
     vi.clearAllMocks()
     win = createWindowMock()
     service = new StreamingService(win.win)
+  })
+
+  afterEach(() => {
+    // Garantiza que un test que falla con fake timers no contagie a los siguientes.
+    vi.useRealTimers()
   })
 
   describe('pushChunk', () => {
@@ -156,7 +161,7 @@ describe('StreamingService', () => {
       expect(win.send).toHaveBeenCalledWith('streaming:status-changed', {
         id: 'ice-err',
         status: 'reconnecting',
-        message: undefined
+        message: 'attempt #1'
       })
       vi.useRealTimers()
     })
@@ -197,7 +202,7 @@ describe('StreamingService', () => {
       expect(win.send).toHaveBeenCalledWith('streaming:status-changed', {
         id: 'ice-close',
         status: 'reconnecting',
-        message: undefined
+        message: 'attempt #1'
       })
       vi.useRealTimers()
     })
@@ -244,7 +249,7 @@ describe('StreamingService', () => {
       expect(win.send).toHaveBeenCalledWith('streaming:status-changed', {
         id: 'shout-1',
         status: 'reconnecting',
-        message: undefined
+        message: 'attempt #1'
       })
       expect(reqHandlers.error).toBeTypeOf('function')
       vi.useRealTimers()
@@ -284,7 +289,7 @@ describe('StreamingService', () => {
       expect(win.send).toHaveBeenCalledWith('streaming:status-changed', {
         id: 'shout-err',
         status: 'reconnecting',
-        message: undefined
+        message: 'attempt #1'
       })
       vi.useRealTimers()
     })

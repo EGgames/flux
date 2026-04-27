@@ -339,9 +339,19 @@ export class PlayoutService {
   }
 
   private schedulePendingAdBlock(adBlockId: string, name: string): void {
-    this.pendingAdBlockId = adBlockId
+    // Si ya hay una tanda en curso o pendiente, evitar pisarla.
+    if (this.state === 'ad_break' || this.pendingAdBlockId) {
+      log.info(`[PlayoutService] Tanda "${name}" diferida: ya hay tanda activa/pendiente`)
+      return
+    }
+    // Notificar al renderer que llego el horario.
     this.win.webContents.send('playout:ad-pending', { adBlockId, name })
-    log.info(`[PlayoutService] Tanda programada al fin del tema: "${name}" (${adBlockId})`)
+    log.info(`[PlayoutService] Tanda por horario: "${name}" (${adBlockId}) - disparando ahora`)
+    // Disparar la tanda inmediatamente. El renderer guarda la posicion del track actual
+    // (resumeFromSecRef) y reanuda al terminar la tanda.
+    void this.triggerAdBlock(adBlockId).catch((e: unknown) => {
+      log.error('[PlayoutService] Error al disparar tanda programada', e)
+    })
   }
 
   private clearSongCountWatcher(): void {

@@ -426,6 +426,63 @@ export function usePlayout() {
     }
   }, [equalizer])
 
+  // Helper compartido por main y monitor para aplicar setSinkId() con la mayor
+  // probabilidad de exito posible. Chromium tira AbortError cuando setSinkId se
+  // llama mientras el <audio> aun esta en transicion (HAVE_NOTHING / HAVE_METADATA),
+  // o cuando el pool html5 de Howler esta reciclando el elemento. Estrategia:
+  //   1. Esperar a readyState >= 2 (HAVE_CURRENT_DATA) o evento canplay (max 800ms).
+  //   2. Reintentos con backoff: 0, 200, 400, 800, 1500 ms.
+  //   3. Verificar node.sinkId tras cada setSinkId() — la promise puede resolver
+  //      sin que el sinkId realmente cambie.
+  //   4. Si falla todo, programar un reintento diferido a 2s (a esa altura el
+  //      pool ya estabilizo y setSinkId casi siempre funciona).
+  const applySinkRobust = useCallback(async (
+    node: HTMLMediaElement & { setSinkId?: (id: string) => Promise<void>; sinkId?: string },
+    targetDeviceId: string
+  ): Promise<{ success: boolean; err: unknown }> => {
+    if (typeof node.setSinkId !== 'function') {
+      return { success: false, err: new Error('setSinkId no soportado') }
+    }
+    // 1. Esperar metadata
+    if (node.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onReady = () => {
+          node.removeEventListener('loadeddata', onReady)
+          node.removeEventListener('canplay', onReady)
+          resolve()
+        }
+        node.addEventListener('loadeddata', onReady, { once: true })
+        node.addEventListener('canplay', onReady, { once: true })
+        window.setTimeout(() => {
+          node.removeEventListener('loadeddata', onReady)
+          node.removeEventListener('canplay', onReady)
+          resolve()
+        }, 800)
+      })
+    }
+    // 2 + 3. Reintentos con verificacion
+    const delays = [0, 200, 400, 800, 1500]
+    let lastErr: unknown = null
+    for (const delay of delays) {
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay))
+      try {
+        await node.setSinkId(targetDeviceId)
+        if (node.sinkId === targetDeviceId) {
+          return { success: true, err: null }
+        }
+        lastErr = new Error('sinkId no cambio tras setSinkId')
+      } catch (err) {
+        lastErr = err
+      }
+    }
+    // 4. Reintento diferido en 2s
+    window.setTimeout(() => {
+      if (!node || node.sinkId === targetDeviceId) return
+      node.setSinkId?.(targetDeviceId).catch(() => { /* logueado en el caller */ })
+    }, 2000)
+    return { success: false, err: lastErr }
+  }, [])
+
   const applySinkToHowl = useCallback(async (howl: Howl) => {
     // Pasar 'default' explicitamente para que el navegador vuelva a la salida del sistema
     // si el usuario cambio desde un device fisico hacia 'default'. Antes filtrabamos null y
@@ -452,25 +509,17 @@ export function usePlayout() {
         appendLog('warn', 'Salida: setSinkId no soportado por el navegador')
         return
       }
-      // Si el elemento html5 reciclado por el pool de Howler ya esta en el device pedido,
-      // saltamos para evitar el AbortError espurio que tira Chromium en cambios encadenados.
       if (node.sinkId === targetDeviceId) {
         alreadyApplied = true
         applied++
         continue
       }
-      // Algunos drivers / Chromium devuelven AbortError en el primer intento si el
-      // <audio> aun no termino de adjuntar el src. Reintentamos hasta 3 veces.
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          await node.setSinkId(targetDeviceId)
-          applied++
-          lastErr = null
-          break
-        } catch (err) {
-          lastErr = err
-          await new Promise((r) => setTimeout(r, 120))
-        }
+      const result = await applySinkRobust(node, targetDeviceId)
+      if (result.success) {
+        applied++
+        lastErr = null
+      } else {
+        lastErr = result.err
       }
     }
     if (applied > 0 && !alreadyApplied) {
@@ -482,8 +531,15 @@ export function usePlayout() {
       // asi que esto NO es un error real. Loggeamos como info.
       appendLog('info', `Salida principal (via EQ) -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
     } else if (lastErr) {
-      const e = lastErr as Error
-      appendLog('error', `Salida principal: setSinkId fallo (${e?.name ?? 'Error'}: ${e?.message ?? String(lastErr)})`)
+      const e = lastErr as { name?: unknown; message?: unknown } | null | undefined
+      const name = typeof e?.name === 'string' && e.name ? e.name : 'Error'
+      const message = typeof e?.message === 'string' && e.message ? e.message : ''
+      const isTransient = !message || name === 'AbortError'
+      if (isTransient) {
+        appendLog('warn', `Salida principal: setSinkId transitorio (${name}), reintento programado en 2s`)
+      } else {
+        appendLog('error', `Salida principal: setSinkId fallo (${name}: ${message})`)
+      }
     }
     // Recovery: si setSinkId dejo el <audio> pausado (Chromium puede pausarlo al cambiar
     // de sink), lo reanudamos. Sin esto la barra de tiempo se congela y no sale audio.
@@ -493,7 +549,7 @@ export function usePlayout() {
         try { await node.play() } catch { /* autoplay/policy: ignorar */ }
       }
     }
-  }, [appendLog, updateEqSink])
+  }, [appendLog, updateEqSink, applySinkRobust])
 
   const applyMonitorSinkToHowl = useCallback(async (howl: Howl) => {
     const targetDeviceId = monitorSinkDeviceIdRef.current ?? 'default'
@@ -501,33 +557,37 @@ export function usePlayout() {
     let applied = 0
     let lastErr: unknown = null
     let alreadyApplied = false
+
     for (const sound of sounds) {
       const node = sound._node
       if (!node || typeof node.setSinkId !== 'function') continue
-      // Si el elemento html5 reciclado por el pool de Howler ya esta en el device pedido,
-      // saltamos para evitar el AbortError espurio que tira Chromium en cambios encadenados.
       if (node.sinkId === targetDeviceId) {
         alreadyApplied = true
         applied++
         continue
       }
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          await node.setSinkId(targetDeviceId)
-          applied++
-          lastErr = null
-          break
-        } catch (err) {
-          lastErr = err
-          await new Promise((r) => setTimeout(r, 120))
-        }
+      const result = await applySinkRobust(node, targetDeviceId)
+      if (result.success) {
+        applied++
+        lastErr = null
+      } else {
+        lastErr = result.err
       }
     }
     if (applied > 0 && !alreadyApplied) {
-      const e = lastErr as Error
-      appendLog('error', `Monitor: setSinkId fallo (${e?.name ?? 'Error'}: ${e?.message ?? String(lastErr)})`)
+      appendLog('info', `Monitor -> ${targetDeviceId === 'default' ? 'sistema (default)' : targetDeviceId.slice(0, 8) + '…'}`)
+    } else if (lastErr) {
+      const e = lastErr as { name?: unknown; message?: unknown } | null | undefined
+      const name = typeof e?.name === 'string' && e.name ? e.name : 'Error'
+      const message = typeof e?.message === 'string' && e.message ? e.message : ''
+      const isTransient = !message || name === 'AbortError'
+      if (isTransient) {
+        appendLog('warn', `Monitor: setSinkId transitorio (${name}), reintento programado en 2s`)
+      } else {
+        appendLog('error', `Monitor: setSinkId fallo (${name}: ${message})`)
+      }
     }
-  }, [appendLog])
+  }, [appendLog, applySinkRobust])
 
   const loadLocalOutput = useCallback(async (profileId: string) => {
     const outputs = await outputService.list(profileId)
@@ -882,9 +942,30 @@ export function usePlayout() {
 
       adAbortedRef.current = false
       const port = audioServerPortRef.current
-      for (const asset of assets) {
+      for (let idx = 0; idx < assets.length; idx++) {
         if (adAbortedRef.current) break
+        const asset = assets[idx]
+        const assetLabel = `${idx + 1}/${assets.length} "${asset.name}"`
         await new Promise<void>((resolve) => {
+          let settled = false
+          let safetyTimer: number | null = null
+          const finish = (reason: 'end' | 'load-error' | 'play-error' | 'aborted' | 'timeout') => {
+            if (settled) return
+            settled = true
+            if (safetyTimer !== null) {
+              window.clearTimeout(safetyTimer)
+              safetyTimer = null
+            }
+            if (reason === 'load-error') {
+              appendLog('error', `Tanda: fallo cargar ${assetLabel}, salteando`)
+            } else if (reason === 'play-error') {
+              appendLog('warn', `Tanda: fallo reproducir ${assetLabel}, salteando`)
+            } else if (reason === 'timeout') {
+              appendLog('warn', `Tanda: timeout en ${assetLabel}, avanzando`)
+            }
+            resolve()
+          }
+
           const ext = asset.sourcePath.split('.').pop()?.toLowerCase() ?? 'mp3'
           const src =
             asset.sourceType === 'local' && port
@@ -897,17 +978,43 @@ export function usePlayout() {
             onplay: () => {
               connectHowlToEq(adHowl)
               void applySinkToHowl(adHowl)
+              // Establecer timeout de seguridad cuando arranca: usar duracion conocida
+              // del asset + slack de 5s. Si Howler no emite onend (puede pasar con MP3
+              // VBR + html5 + EQ), forzamos el avance al siguiente asset.
+              const durMs = asset.durationMs ?? 0
+              const fallbackMs = durMs > 0
+                ? durMs + 5000
+                : Math.max(((adHowl.duration() || 30) * 1000) + 5000, 30000)
+              if (safetyTimer !== null) window.clearTimeout(safetyTimer)
+              safetyTimer = window.setTimeout(() => finish('timeout'), fallbackMs)
             },
-            onend: () => resolve(),
-            onstop: () => resolve(),
-            onloaderror: () => {
-              console.error('[usePlayout] Ad track load error:', asset.name)
-              resolve()
+            onend: () => finish('end'),
+            onstop: () => {
+              // Solo tratar onstop como fin si fue aborto explicito (Detener tanda / Detener
+              // global). Howler emite onstop espurios cuando el pool html5 recicla el <audio>.
+              if (adAbortedRef.current) finish('aborted')
+            },
+            onloaderror: () => finish('load-error'),
+            onplayerror: (_id, err) => {
+              console.error('[usePlayout] Ad playerror:', asset.name, err)
+              // Intento de recuperacion: tras unlock por gesto/audio context, reintentar una vez
+              try {
+                adHowl.once('unlock', () => {
+                  try { adHowl.play() } catch { /* no-op */ }
+                })
+              } catch { /* no-op */ }
+              // Damos un margen corto para el reintento; si no arranca, salteamos
+              window.setTimeout(() => finish('play-error'), 1500)
             }
           })
           adHowl.play()
           howlRef.current = adHowl
           adCurrentHowlRef.current = adHowl
+
+          // Safety net adicional: si onplay nunca dispara (p. ej. el archivo no existe
+          // y onloaderror tampoco llega por algun motivo), avanzar a los 30s para no
+          // colgar la tanda completa.
+          safetyTimer = window.setTimeout(() => finish('timeout'), 30000)
 
           // Monitor: si hay device asignado, reproducir la tanda en paralelo en el monitor
           // (los anuncios deben sonar tanto en la salida principal como en el monitor).
@@ -916,17 +1023,29 @@ export function usePlayout() {
               src: [src],
               html5: true,
               volume: 1,
-              onplay: () => { void applyMonitorSinkToHowl(monitorAdHowl) }
+              onplay: () => { void applyMonitorSinkToHowl(monitorAdHowl) },
+              onplayerror: () => { /* monitor es secundario, ignorar */ },
+              onloaderror: () => { /* monitor es secundario, ignorar */ }
             })
             monitorAdHowl.play()
             monitorHowlRef.current = monitorAdHowl
           }
         })
+        // Liberar el adHowl actual antes del siguiente para evitar colisiones del pool html5
+        // de Howler (que puede reciclar el <audio> y disparar onstop sobre el viejo).
+        const finishedAd = adCurrentHowlRef.current
         adCurrentHowlRef.current = null
+        if (finishedAd) {
+          try { finishedAd.off() } catch { /* no-op */ }
+          try { finishedAd.stop() } catch { /* no-op */ }
+          try { finishedAd.unload() } catch { /* no-op */ }
+        }
         // Limpiar el monitor de la tanda antes de pasar al proximo asset.
-        if (monitorHowlRef.current) {
-          try { monitorHowlRef.current.stop() } catch { /* no-op */ }
-          try { monitorHowlRef.current.unload() } catch { /* no-op */ }
+        const finishedMonitor = monitorHowlRef.current as Howl | null
+        if (finishedMonitor) {
+          try { finishedMonitor.off() } catch { /* no-op */ }
+          try { finishedMonitor.stop() } catch { /* no-op */ }
+          try { finishedMonitor.unload() } catch { /* no-op */ }
           monitorHowlRef.current = null
         }
       }
@@ -1170,6 +1289,26 @@ export function usePlayout() {
   }, [loadLocalOutput, loadMonitorOutput, loadAudioEffects, loadTimeRules])
 
   const stop = useCallback(async () => {
+    // Abortar cualquier tanda en curso para que el for-loop de onAdStart no quede
+    // colgado esperando onend (lo que dejaria isAdBreakRef.current = true y
+    // bloquearia el siguiente track-changed cuando el operador haga Iniciar otra vez).
+    adAbortedRef.current = true
+    isAdBreakRef.current = false
+    const adCur = adCurrentHowlRef.current
+    if (adCur) {
+      try { adCur.off() } catch { /* no-op */ }
+      try { adCur.stop() } catch { /* no-op */ }
+      try { adCur.unload() } catch { /* no-op */ }
+      adCurrentHowlRef.current = null
+    }
+    setAdBreakName(null)
+    adBreakStartedAtRef.current = null
+    adBreakTotalSecRef.current = null
+    setAdBreakElapsedSec(0)
+    setAdBreakRemainingSec(null)
+    resumeFromSecRef.current = null
+    crossfadeTriggeredRef.current = false
+
     howlRef.current?.unload()
     howlRef.current = null
     monitorHowlRef.current?.unload()

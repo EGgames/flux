@@ -16,7 +16,7 @@ protocol.registerSchemesAsPrivileged([
     }
   }
 ])
-import { closeDb, getDb } from './db'
+import { closeDb, getDb, initDb } from './db'
 import { registerProfileIpc } from './ipc/profiles.ipc'
 import { registerAudioAssetIpc } from './ipc/audioAssets.ipc'
 import { registerPlaylistIpc } from './ipc/playlists.ipc'
@@ -28,12 +28,25 @@ import { registerPlayoutIpc } from './ipc/playout.ipc'
 import { registerAudioEffectsIpc } from './ipc/audioEffects.ipc'
 import { SchedulerService } from './services/schedulerService'
 import { StreamingService } from './services/streamingService'
+import { AudioWatchdog } from './services/audioWatchdogService'
+import { AutoUpdaterService } from './services/autoUpdaterService'
+import { installLogger } from './services/loggerService'
 import log from 'electron-log'
+
+installLogger()
 
 let mainWindow: BrowserWindow | null = null
 let schedulerService: SchedulerService | null = null
 export let streamingService: StreamingService | null = null
+let audioWatchdog: AudioWatchdog | null = null
 let audioServerPort: number | null = null
+
+// Estado de progreso del playout reportado por el renderer (usado por watchdog y telemetria).
+const playoutPosition: { trackId: string | null; positionMs: number | null; isPlaying: boolean } = {
+  trackId: null,
+  positionMs: null,
+  isPlaying: false
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -47,7 +60,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      webSecurity: true
     }
   })
 
@@ -201,7 +215,7 @@ function startAudioHttpServer(): Promise<void> {
 }
 
 async function initializeApp(): Promise<void> {
-  const db = getDb()
+  const db = await initDb()
 
   // Ensure default profile exists
   const profileCount = await db.profile.count()
@@ -228,6 +242,35 @@ async function initializeApp(): Promise<void> {
 
   ipcMain.handle('audio:server-port', () => audioServerPort)
 
+  // Telemetria de progreso de track desde renderer (usePlayout). Pe periodicamente.
+  ipcMain.handle('playout:report-position', (_e, payload: { trackId: string | null; positionMs: number | null; isPlaying: boolean }) => {
+    playoutPosition.trackId = payload?.trackId ?? null
+    playoutPosition.positionMs = typeof payload?.positionMs === 'number' ? payload.positionMs : null
+    playoutPosition.isPlaying = Boolean(payload?.isPlaying)
+    return { ok: true }
+  })
+
+  // Logging desde renderer (errores, warnings) hacia el log persistente.
+  ipcMain.handle('app:log', (_e, payload: { level?: string; message?: string; context?: unknown }) => {
+    const level = payload?.level === 'error' ? 'error' : payload?.level === 'warn' ? 'warn' : 'info'
+    const message = String(payload?.message ?? '')
+    if (level === 'error') log.error(`[renderer] ${message}`, payload?.context)
+    else if (level === 'warn') log.warn(`[renderer] ${message}`, payload?.context)
+    else log.info(`[renderer] ${message}`, payload?.context)
+    return { ok: true }
+  })
+
+  // Watchdog de avance: si el track no progresa, pide al renderer pasar al siguiente.
+  audioWatchdog = new AudioWatchdog({
+    getPositionMs: () => playoutPosition.positionMs,
+    isPlaying: () => playoutPosition.isPlaying,
+    getCurrentTrackId: () => playoutPosition.trackId,
+    onStall: ({ trackId, reason }) => {
+      mainWindow?.webContents.send('playout:stall', { trackId, reason })
+    }
+  })
+  audioWatchdog.start()
+
   // Window controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -238,6 +281,13 @@ async function initializeApp(): Promise<void> {
   ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized() ?? false)
 
   await schedulerService.start()
+
+  // Auto-updater (no-op si no hay UPDATE_FEED_URL)
+  const updater = new AutoUpdaterService()
+  if (updater.isEnabled()) {
+    void updater.checkForUpdates()
+  }
+
   log.info('FLUX started')
 }
 
@@ -255,6 +305,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', async () => {
   schedulerService?.stop()
   streamingService?.disconnectAll()
+  audioWatchdog?.stop()
   await closeDb()
   if (process.platform !== 'darwin') app.quit()
 })
@@ -262,5 +313,6 @@ app.on('window-all-closed', async () => {
 app.on('before-quit', async () => {
   schedulerService?.stop()
   streamingService?.disconnectAll()
+  audioWatchdog?.stop()
   await closeDb()
 })

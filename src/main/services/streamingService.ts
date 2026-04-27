@@ -25,7 +25,16 @@ interface Connection {
   socket?: net.Socket
   active: boolean
   reconnectTimer?: NodeJS.Timeout
+  /** Numero de intentos de reconexion consecutivos. Resetea a 0 al conectar OK. */
+  reconnectAttempts: number
+  /** Config original para poder re-conectar. */
+  config: IcecastConfig | ShoutcastConfig
+  /** True si el usuario llamo disconnect() explicito. Bloquea la reconexion. */
+  manualDisconnect: boolean
 }
+
+const BASE_BACKOFF_MS = 1000
+const MAX_BACKOFF_MS = 60000
 
 export class StreamingService {
   private connections = new Map<string, Connection>()
@@ -67,8 +76,8 @@ export class StreamingService {
 
     socket.on('error', (err) => {
       log.error(`Icecast [${id}] error:`, err.message)
-      this.scheduleReconnect(id)
       this.emitStatus(id, 'error', err.message)
+      this.scheduleReconnect(id)
     })
 
     socket.on('close', () => {
@@ -78,7 +87,17 @@ export class StreamingService {
       this.scheduleReconnect(id)
     })
 
-    this.connections.set(id, { id, type: 'icecast', socket, active: true })
+    const existingState = this.connections.get(id)
+    this.connections.set(id, {
+      id,
+      type: 'icecast',
+      socket,
+      active: true,
+      reconnectAttempts: 0,
+      config,
+      manualDisconnect: false,
+      reconnectTimer: existingState?.reconnectTimer
+    })
     this.emitStatus(id, 'connected')
     log.info(`Icecast [${id}] connected to ${config.host}:${config.port}${config.mount}`)
   }
@@ -117,7 +136,17 @@ export class StreamingService {
 
     // Expose socket via req.socket for writing
     const socket = req.socket as net.Socket
-    this.connections.set(id, { id, type: 'shoutcast', socket, active: true })
+    const existingState = this.connections.get(id)
+    this.connections.set(id, {
+      id,
+      type: 'shoutcast',
+      socket,
+      active: true,
+      reconnectAttempts: 0,
+      config,
+      manualDisconnect: false,
+      reconnectTimer: existingState?.reconnectTimer
+    })
     this.emitStatus(id, 'connected')
     log.info(`Shoutcast [${id}] connected to ${config.host}:${config.port}`)
   }
@@ -145,6 +174,7 @@ export class StreamingService {
     const conn = this.connections.get(id)
     if (conn) {
       conn.active = false
+      conn.manualDisconnect = true
       if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
       conn.socket?.destroy()
       this.connections.delete(id)
@@ -158,13 +188,41 @@ export class StreamingService {
     }
   }
 
-  private scheduleReconnect(id: string, delayMs = 5000): void {
+  /**
+   * Calcula el delay del proximo intento siguiendo backoff exponencial:
+   * 1s, 2s, 4s, 8s, 16s, 32s, 60s (cap). Util para tests.
+   */
+  static computeBackoff(attempt: number, baseMs = BASE_BACKOFF_MS, capMs = MAX_BACKOFF_MS): number {
+    const exp = baseMs * 2 ** Math.max(0, attempt)
+    return Math.min(capMs, exp)
+  }
+
+  private scheduleReconnect(id: string): void {
     const conn = this.connections.get(id)
     if (!conn) return
+    if (conn.manualDisconnect) return
     if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
+
+    const attempts = typeof conn.reconnectAttempts === 'number' ? conn.reconnectAttempts : 0
+    const delayMs = StreamingService.computeBackoff(attempts)
+    conn.reconnectAttempts = attempts + 1
+    log.info(`[stream:${id}] reconnect attempt #${conn.reconnectAttempts} in ${delayMs}ms`)
+    this.emitStatus(id, 'reconnecting', `attempt #${conn.reconnectAttempts}`)
+
     conn.reconnectTimer = setTimeout(() => {
-      log.info(`Attempting reconnect for [${id}]`)
-      this.emitStatus(id, 'reconnecting')
+      const current = this.connections.get(id)
+      if (!current || current.manualDisconnect) return
+      const cfg = current.config
+      // Re-conectar segun tipo. Si exitoso, los handlers internos resetean reconnectAttempts.
+      if (current.type === 'icecast') {
+        void this.connectIcecast(id, cfg as IcecastConfig).catch((err) =>
+          log.error(`[stream:${id}] icecast reconnect failed`, err)
+        )
+      } else {
+        void this.connectShoutcast(id, cfg as ShoutcastConfig).catch((err) =>
+          log.error(`[stream:${id}] shoutcast reconnect failed`, err)
+        )
+      }
     }, delayMs)
   }
 
