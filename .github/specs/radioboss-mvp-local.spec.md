@@ -1,9 +1,9 @@
 ---
 id: SPEC-002
-status: IN_PROGRESS
+status: APPROVED
 feature: flux-mvp-local
 created: 2026-04-22
-updated: 2026-04-22
+updated: 2026-05-08
 author: spec-generator
 version: "1.1"
 stack: "Electron 33 + React 19 + Vite + TypeScript + Prisma + SQLite"
@@ -12,8 +12,8 @@ related-specs: []
 
 # Spec: FLUX MVP Local
 
-> **Estado:** `DRAFT` → aprobar con `status: APPROVED` antes de iniciar implementacion.
-> **Ciclo de vida:** DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → DEPRECATED
+> **Estado:** `APPROVED` — aprobada el 2026-05-08.
+> **Ciclo de vida:** DRAFT → ~~APPROVED~~ → IN_PROGRESS → **IMPLEMENTED** → DEPRECATED
 
 ---
 

@@ -53,10 +53,21 @@ Software de automatización de radio para escritorio. Playout local, programaci�
 
 ## Requisitos
 
-- **Node.js** ≥ 20 LTS
-- **npm** ≥ 10
-- **FFmpeg / ffprobe** en `PATH` (para detectar duraciones reales de los audios)
-- **Java 17+** y **Maven 3.9+** sólo si vas a correr los tests E2E
+### Usuario final (instalar desde Releases)
+
+> No se requiere instalar ningún software adicional. El instalador incluye todo lo necesario:
+> `ffprobe` (análisis de audio), base de datos SQLite y runtime de Node.js embebido en Electron.
+
+| Sistema operativo | Versión mínima |
+|---|---|
+| Windows | 10 64-bit (build 1903+) |
+| macOS | 12 Monterey+ |
+| Linux | Ubuntu 20.04+ / Fedora 34+ |
+
+### Desarrolladores (clonar y correr en local)
+
+- **Node.js** ≥ 20 LTS + **npm** ≥ 10
+- **Java 17+** y **Maven 3.9+** solo si vas a correr los tests E2E
 
 ---
 
@@ -194,12 +205,19 @@ Salida en `dist/`. La configuración del empaquetador vive en [electron-builder.
 
 ## Instalación desde Releases
 
+> No se requiere instalar Node.js, FFmpeg ni ninguna otra dependencia. El instalador lo incluye todo.
+
 ### Windows
-Descargá `FLUX.Setup.<version>.exe` desde [Releases](https://github.com/EGgames/flux/releases) y ejecutalo. SmartScreen puede pedirte "Más información → Ejecutar de todos modos" porque el binario aún no está firmado.
+
+1. Descargá `FLUX Setup <version>.exe` desde [Releases](https://github.com/EGgames/flux/releases).
+2. Doble clic en el instalador y seguí los pasos.
+3. Si Windows SmartScreen muestra una advertencia: clic en **Más información** → **Ejecutar de todos modos** (el binario aún no tiene firma de código EV).
+4. FLUX queda disponible en el menú Inicio y en el escritorio.
 
 ### Linux
-Descargá `FLUX-<version>.AppImage`, dale permisos y ejecutalo:
 
+1. Descargá `FLUX-<version>.AppImage` desde [Releases](https://github.com/EGgames/flux/releases).
+2. En el explorador de archivos: clic derecho → Propiedades → Permisos → **Permitir ejecutar como programa**. O en terminal:
 ```bash
 chmod +x FLUX-*.AppImage
 ./FLUX-*.AppImage
@@ -207,15 +225,17 @@ chmod +x FLUX-*.AppImage
 
 ### macOS — "La app está dañada y no se puede abrir"
 
-Los `.dmg` actuales **no están firmados ni notarizados por Apple** (notarización requiere cuenta Apple Developer paga). macOS Gatekeeper marca el `.app` con `com.apple.quarantine` al descargarlo y muestra el mensaje "está dañado". La app **no** está dañada.
+Los `.dmg` actuales **no están firmados ni notarizados por Apple** (notarización requiere cuenta Apple Developer paga). macOS Gatekeeper marca el `.app` con `com.apple.quarantine` al descargarlo y muestra ese mensaje. La app **no** está dañada.
 
-Después de arrastrar `FLUX.app` a `/Applications`, abrí Terminal y ejecutá una sola vez:
-
+1. Descargá el `.dmg` correspondiente a tu Mac desde [Releases](https://github.com/EGgames/flux/releases):
+   - Apple Silicon (M1/M2/M3/M4): `FLUX-<version>-arm64.dmg`
+   - Intel: `FLUX-<version>.dmg`
+2. Abrí el `.dmg` y arrastrá `FLUX.app` a la carpeta `/Applications`.
+3. Abrí Terminal (Launchpad → Otros → Terminal) y ejecutá **una sola vez**:
 ```bash
 xattr -cr /Applications/FLUX.app
 ```
-
-Después abrila normalmente desde Launchpad. Para Apple Silicon usá `FLUX-<version>-arm64.dmg`; para Intel usá `FLUX-<version>.dmg`.
+4. Cerrá Terminal y abrí FLUX normalmente desde Launchpad o Aplicaciones.
 
 ---
 

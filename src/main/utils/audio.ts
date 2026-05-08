@@ -1,15 +1,30 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { app } from 'electron'
+import ffprobeStatic from 'ffprobe-static'
 
 const execFileAsync = promisify(execFile)
 
 /**
+ * Returns the path to the ffprobe binary.
+ * In production (packaged), uses the bundled binary from ffprobe-static (asarUnpack).
+ * In development, uses the binary from node_modules directly.
+ */
+function getFfprobePath(): string {
+  if (app.isPackaged) {
+    // electron-builder unpacks asarUnpack files to app.asar.unpacked
+    return ffprobeStatic.path.replace('app.asar', 'app.asar.unpacked')
+  }
+  return ffprobeStatic.path
+}
+
+/**
  * Reads audio duration in milliseconds from a local file.
- * Uses ffprobe if available, falls back to 0 if not.
+ * Uses the bundled ffprobe binary. Falls back to null if unavailable.
  */
 export async function getAudioDurationMs(filePath: string): Promise<number | null> {
   try {
-    const { stdout } = await execFileAsync('ffprobe', [
+    const { stdout } = await execFileAsync(getFfprobePath(), [
       '-v', 'error',
       '-show_entries', 'format=duration',
       '-of', 'default=noprint_wrappers=1:nokey=1',

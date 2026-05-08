@@ -2,6 +2,21 @@
 
 > Guía rápida para operadores y SRE. Cubre incidentes operativos comunes y herramientas de diagnóstico introducidas por SPEC-001 (Robustness v1).
 
+## 0. Prerequisitos del sistema
+
+FLUX incluye todos sus componentes en el instalador. El usuario final **no necesita instalar software adicional**.
+
+| Componente | Estado | Notas |
+|-----------|--------|-------|
+| Node.js / V8 | Bundled (Electron) | No requiere instalación |
+| `ffprobe` | Bundled (`ffprobe-static`) | Para análisis de duraciones de audio |
+| SQLite | Bundled | Migraciones automáticas en primer arranque |
+
+> **Para desarrolladores**: solo se necesita Node.js ≥ 20 LTS y npm ≥ 10 para correr en modo desarrollo.
+> Ver [PRODUCTION.md](PRODUCTION.md) para el checklist completo de release.
+
+---
+
 ## 1. Logs
 
 - Ubicación: `userData/logs/flux.log` (rotación a 10 MB).

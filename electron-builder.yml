@@ -15,10 +15,13 @@ files:
 
 # better-sqlite3 es modulo NATIVO (.node bindings). DEBE ir desempaquetado:
 # Node no puede cargar .node files desde adentro de app.asar.
+# ffprobe-static contiene binarios nativos de ffprobe por plataforma.
+# Ambos necesitan estar en app.asar.unpacked para poder ser ejecutados.
 asarUnpack:
   - node_modules/better-sqlite3/**/*
   - node_modules/bindings/**/*
   - node_modules/file-uri-to-path/**/*
+  - node_modules/ffprobe-static/**/*
 
 # electron-builder corre `npm rebuild` por default (npmRebuild: true) y
 # recompila better-sqlite3 con los headers de Electron en cada plataforma
