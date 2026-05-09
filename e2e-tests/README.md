@@ -8,7 +8,7 @@ Este modulo contiene pruebas end-to-end en Java para FLUX usando:
 
 ## Requisitos
 
-- Java 17+
+- Java 25+
 - Maven 3.9+
 - Firefox instalado
 - Aplicacion levantada en `http://localhost:5173` (o configurar otra URL)

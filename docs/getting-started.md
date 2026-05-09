@@ -7,7 +7,7 @@ Sigue estos pasos para configurar tu entorno de desarrollo para Flux.
 - **Node.js**: Versión 20 LTS o superior.
 - **npm**: Versión 10 o superior.
 - **FFmpeg / ffprobe**: Debe estar instalado en el sistema y accesible en el `PATH`. Se utiliza para obtener metadatos y duraciones precisas de los archivos de audio.
-- **Java 17+ y Maven 3.9+**: Únicamente necesarios para ejecutar la suite de pruebas E2E (Serenity/Cucumber).
+- **Java 25+ y Maven 3.9+**: Únicamente necesarios para ejecutar la suite de pruebas E2E (Serenity/Cucumber).
 
 ## Instalación
 
